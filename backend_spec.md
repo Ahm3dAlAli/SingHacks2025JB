@@ -98,3 +98,63 @@ GET   /me                                     → Current user & roles
 GET   /me/prefs                               → UI preferences
 PATCH /me/prefs                                → Update prefs
 WS    /ws                                     → SSE/WS: alert:created, alert:updated, doc:scored
+
+──────────────────────────
+kb-v1 (Knowledge Base / Search)
+──────────────────────────
+GET   /kb/search?q=&type=rule|doc|alert       → Unified search across rules, regulatory docs, alerts
+GET   /kb/rules/{ruleId}                      → Parsed rule (normalized text, clauses, citations)
+GET   /kb/docs/{docId}                        → Regulatory source doc (structured sections, metadata)
+GET   /kb/references?alertId=...              → All citations/references linked to an alert/case
+
+──────────────────────────
+users-v1 (Users, Roles & Teams)
+──────────────────────────
+GET   /users                                  → List users (name, email, roles)
+POST  /users                                  → Create user (admin only)
+GET   /users/{userId}                         → User detail
+PATCH /users/{userId}/roles                   → Update roles (Front/Compliance/Legal/Admin)
+GET   /teams                                  → List teams / groups
+PATCH /users/{userId}/status                  → Activate / suspend user
+
+──────────────────────────
+notify-v1 (Notifications Center)
+──────────────────────────
+GET   /notifications                          → List in-app notifications (paged)
+PATCH /notifications/{id}/read                → Mark one notification as read
+PATCH /notifications/read-all                 → Mark all as read
+GET   /subscriptions                          → Current WS/SSE topics bound to user
+
+──────────────────────────
+dashboard-v1 (Aggregates & KPIs)
+──────────────────────────
+GET   /dashboard/summary                      → High-level KPIs (open alerts by severity, SLA breaches)
+GET   /dashboard/trends?window=7d             → Time-series for alerts/doc pass-rate/latency
+GET   /dashboard/my-work                      → “My” queue (assigned alerts/cases, due soon)
+
+──────────────────────────
+scheduler-v1 (Jobs, Crawls & Replays)
+──────────────────────────
+GET   /scheduler/jobs                         → List scheduled jobs (crawl, replay, report)
+POST  /scheduler/jobs/run                     → Trigger a job now (by type/id)
+GET   /scheduler/runs?jobId=...               → Recent runs with status & timings
+
+──────────────────────────
+lineage-v1 (Data Lineage & Traceability)
+──────────────────────────
+GET   /lineage/{objectId}                     → Upstream/downstream graph for alert/doc/rule
+GET   /lineage/trace?alertId=...              → End-to-end trace (txn → rule → alert → report)
+
+──────────────────────────
+integrations-v1 (External Systems)
+──────────────────────────
+GET   /integrations                           → List configured integrations (Jira, Slack, ServiceNow)
+POST  /integrations/{type}/sync               → Push object to external system (e.g., create Jira)
+GET   /integrations/{type}/status/{extId}     → Sync status / deep link to external ticket
+
+──────────────────────────
+agent-v1 (Agentic Orchestration — extensions)
+──────────────────────────
+POST  /agent/explain/{alertId}                → Human-readable rationale (rules, evidence, doc issues)
+POST  /agent/feedback                         → Record human decision (approve/reject/override + reason)
+POST  /agent/tune                             → Propose threshold/rule-weight adjustments from feedback
