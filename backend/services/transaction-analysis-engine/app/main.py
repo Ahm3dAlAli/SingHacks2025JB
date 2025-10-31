@@ -27,11 +27,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     # Startup
     logger.info(
         "Starting Transaction Analysis Engine (TAE)",
-        extra={"extra_data": {
-            "version": __version__,
-            "environment": settings.ENVIRONMENT,
-            "port": settings.TAE_PORT
-        }}
+        extra={
+            "extra_data": {
+                "version": __version__,
+                "environment": settings.ENVIRONMENT,
+                "port": settings.TAE_PORT,
+            }
+        },
     )
 
     # Test database connection
@@ -75,8 +77,7 @@ app.add_middleware(
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle validation errors with detailed error messages"""
     logger.warning(
-        f"Validation error on {request.url.path}",
-        extra={"extra_data": {"errors": exc.errors()}}
+        f"Validation error on {request.url.path}", extra={"extra_data": {"errors": exc.errors()}}
     )
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -92,17 +93,14 @@ async def generic_exception_handler(request: Request, exc: Exception):
     """Handle all uncaught exceptions"""
     logger.error(
         f"Unhandled exception on {request.url.path}: {exc}",
-        extra={"extra_data": {
-            "error_type": type(exc).__name__,
-            "url": str(request.url)
-        }},
-        exc_info=True
+        extra={"extra_data": {"error_type": type(exc).__name__, "url": str(request.url)}},
+        exc_info=True,
     )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "detail": "Internal server error",
-            "error_type": type(exc).__name__ if settings.is_development else "ServerError"
+            "error_type": type(exc).__name__ if settings.is_development else "ServerError",
         },
     )
 
@@ -112,7 +110,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
     "/health",
     tags=["Health"],
     summary="Health check endpoint",
-    response_description="Service health status"
+    response_description="Service health status",
 )
 async def health_check():
     """
@@ -133,14 +131,11 @@ async def health_check():
         "environment": settings.ENVIRONMENT,
     }
 
-    logger.info(
-        "Health check performed",
-        extra={"extra_data": health_status}
-    )
+    logger.info("Health check performed", extra={"extra_data": health_status})
 
     return JSONResponse(
         status_code=status.HTTP_200_OK if db_connected else status.HTTP_503_SERVICE_UNAVAILABLE,
-        content=health_status
+        content=health_status,
     )
 
 
@@ -175,5 +170,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=settings.TAE_PORT,
         reload=settings.is_development,
-        log_level=settings.LOG_LEVEL.lower()
+        log_level=settings.LOG_LEVEL.lower(),
     )

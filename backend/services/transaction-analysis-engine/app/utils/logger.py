@@ -66,8 +66,7 @@ def setup_logging() -> logging.Logger:
     if settings.is_development:
         # Use simple format for development
         console_format = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         )
         console_handler.setFormatter(console_format)
     else:
@@ -78,10 +77,7 @@ def setup_logging() -> logging.Logger:
 
     # File Handler (always JSON, with rotation)
     file_handler = RotatingFileHandler(
-        log_file,
-        maxBytes=10 * 1024 * 1024,  # 10MB
-        backupCount=5,
-        encoding="utf-8"
+        log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"  # 10MB
     )
     file_handler.setLevel(log_level)
     file_handler.setFormatter(JSONFormatter())
@@ -92,10 +88,9 @@ def setup_logging() -> logging.Logger:
 
     logger.info(
         "Logging initialized",
-        extra={"extra_data": {
-            "log_level": settings.LOG_LEVEL,
-            "environment": settings.ENVIRONMENT
-        }}
+        extra={
+            "extra_data": {"log_level": settings.LOG_LEVEL, "environment": settings.ENVIRONMENT}
+        },
     )
 
     return logger

@@ -7,11 +7,18 @@ from datetime import datetime, date
 from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID
-import uuid
 
 from sqlalchemy import (
-    String, Integer, Boolean, TIMESTAMP, DATE, DECIMAL, TEXT,
-    CheckConstraint, ForeignKey, Index, ARRAY
+    String,
+    Integer,
+    Boolean,
+    TIMESTAMP,
+    DATE,
+    DECIMAL,
+    TEXT,
+    CheckConstraint,
+    ForeignKey,
+    ARRAY,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB, INET
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -20,20 +27,19 @@ from sqlalchemy.sql import func
 
 class Base(DeclarativeBase):
     """Base class for all ORM models"""
+
     pass
 
 
 class Transaction(Base):
     """Transaction model - stores all transaction data from CSV"""
+
     __tablename__ = "transactions"
 
     # Primary Key
     id: Mapped[int] = mapped_column(primary_key=True)
     transaction_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        unique=True,
-        nullable=False,
-        index=True
+        PG_UUID(as_uuid=True), unique=True, nullable=False, index=True
     )
 
     # Basic Transaction Info
@@ -114,26 +120,20 @@ class Transaction(Base):
     batch_id: Mapped[Optional[str]] = mapped_column(String(100), index=True)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
-        server_default=func.current_timestamp()
-    )
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
-        server_default=func.current_timestamp(),
-        onupdate=func.current_timestamp()
+        TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
     )
 
     # Relationships
     risk_assessment: Mapped[Optional["RiskAssessment"]] = relationship(
-        "RiskAssessment",
-        back_populates="transaction",
-        uselist=False
+        "RiskAssessment", back_populates="transaction", uselist=False
     )
 
 
 class RiskAssessment(Base):
     """Risk assessment results per transaction"""
+
     __tablename__ = "risk_assessments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -142,7 +142,7 @@ class RiskAssessment(Base):
         ForeignKey("transactions.transaction_id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
-        index=True
+        index=True,
     )
 
     # Risk Scoring
@@ -150,18 +150,18 @@ class RiskAssessment(Base):
         Integer,
         CheckConstraint("risk_score >= 0 AND risk_score <= 100"),
         nullable=False,
-        index=True
+        index=True,
     )
     alert_level: Mapped[str] = mapped_column(
         String(20),
         CheckConstraint("alert_level IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')"),
         nullable=False,
-        index=True
+        index=True,
     )
 
     # Analysis Results
-    rules_triggered: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='[]')
-    patterns_detected: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='[]')
+    rules_triggered: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="[]")
+    patterns_detected: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="[]")
     explanation: Mapped[Optional[str]] = mapped_column(TEXT)
 
     # Agent Contributions
@@ -170,36 +170,26 @@ class RiskAssessment(Base):
 
     # Timestamps
     analyzed_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
-        server_default=func.current_timestamp()
+        TIMESTAMP, server_default=func.current_timestamp()
     )
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
-        server_default=func.current_timestamp()
-    )
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
-        server_default=func.current_timestamp(),
-        onupdate=func.current_timestamp()
+        TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
     )
 
     # Relationships
     transaction: Mapped["Transaction"] = relationship(
-        "Transaction",
-        back_populates="risk_assessment"
+        "Transaction", back_populates="risk_assessment"
     )
 
 
 class AgentExecutionLog(Base):
     """Audit trail of agent executions"""
+
     __tablename__ = "agent_execution_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    transaction_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        nullable=False,
-        index=True
-    )
+    transaction_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
     agent_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
 
     # Execution Data
@@ -212,20 +202,19 @@ class AgentExecutionLog(Base):
         String(20),
         CheckConstraint("status IN ('success', 'error', 'timeout', 'skipped')"),
         nullable=False,
-        index=True
+        index=True,
     )
     error_message: Mapped[Optional[str]] = mapped_column(TEXT)
 
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
-        server_default=func.current_timestamp(),
-        index=True
+        TIMESTAMP, server_default=func.current_timestamp(), index=True
     )
 
 
 class AuditTrail(Base):
     """System-wide audit log for regulatory compliance"""
+
     __tablename__ = "audit_trail"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -249,14 +238,13 @@ class AuditTrail(Base):
 
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
-        server_default=func.current_timestamp(),
-        index=True
+        TIMESTAMP, server_default=func.current_timestamp(), index=True
     )
 
 
 class RegulatoryRule(Base):
     """Regulatory rules (read-only, written by Service 1)"""
+
     __tablename__ = "regulatory_rules"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -275,7 +263,7 @@ class RegulatoryRule(Base):
     severity: Mapped[str] = mapped_column(
         String(20),
         CheckConstraint("severity IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')"),
-        nullable=False
+        nullable=False,
     )
     priority: Mapped[int] = mapped_column(Integer, default=100)
 
@@ -290,12 +278,7 @@ class RegulatoryRule(Base):
     tags: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String(255)))
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
-        server_default=func.current_timestamp()
-    )
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
-        server_default=func.current_timestamp(),
-        onupdate=func.current_timestamp()
+        TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
     )

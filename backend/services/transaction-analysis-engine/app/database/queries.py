@@ -5,8 +5,9 @@ Provides async CRUD operations for all database tables.
 
 from typing import Optional, List
 from uuid import UUID
+from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import Transaction, RiskAssessment, RegulatoryRule, AgentExecutionLog
@@ -14,9 +15,7 @@ from app.utils.logger import logger
 
 
 async def get_regulatory_rules(
-    session: AsyncSession,
-    jurisdiction: Optional[str] = None,
-    is_active: bool = True
+    session: AsyncSession, jurisdiction: Optional[str] = None, is_active: bool = True
 ) -> List[RegulatoryRule]:
     """
     Get regulatory rules, optionally filtered by jurisdiction.
@@ -41,16 +40,13 @@ async def get_regulatory_rules(
 
     logger.info(
         f"Retrieved {len(rules)} regulatory rules",
-        extra={"extra_data": {"jurisdiction": jurisdiction, "count": len(rules)}}
+        extra={"extra_data": {"jurisdiction": jurisdiction, "count": len(rules)}},
     )
 
     return list(rules)
 
 
-async def save_transaction(
-    session: AsyncSession,
-    transaction: Transaction
-) -> Transaction:
+async def save_transaction(session: AsyncSession, transaction: Transaction) -> Transaction:
     """
     Save a transaction to the database.
 
@@ -66,21 +62,20 @@ async def save_transaction(
 
     logger.info(
         f"Transaction saved: {transaction.transaction_id}",
-        extra={"extra_data": {
-            "transaction_id": str(transaction.transaction_id),
-            "customer_id": transaction.customer_id,
-            "amount": float(transaction.amount),
-            "currency": transaction.currency
-        }}
+        extra={
+            "extra_data": {
+                "transaction_id": str(transaction.transaction_id),
+                "customer_id": transaction.customer_id,
+                "amount": float(transaction.amount),
+                "currency": transaction.currency,
+            }
+        },
     )
 
     return transaction
 
 
-async def save_risk_assessment(
-    session: AsyncSession,
-    assessment: RiskAssessment
-) -> RiskAssessment:
+async def save_risk_assessment(session: AsyncSession, assessment: RiskAssessment) -> RiskAssessment:
     """
     Save a risk assessment to the database.
 
@@ -96,19 +91,20 @@ async def save_risk_assessment(
 
     logger.info(
         f"Risk assessment saved for transaction: {assessment.transaction_id}",
-        extra={"extra_data": {
-            "transaction_id": str(assessment.transaction_id),
-            "risk_score": assessment.risk_score,
-            "alert_level": assessment.alert_level
-        }}
+        extra={
+            "extra_data": {
+                "transaction_id": str(assessment.transaction_id),
+                "risk_score": assessment.risk_score,
+                "alert_level": assessment.alert_level,
+            }
+        },
     )
 
     return assessment
 
 
 async def get_transaction_by_id(
-    session: AsyncSession,
-    transaction_id: UUID
+    session: AsyncSession, transaction_id: UUID
 ) -> Optional[Transaction]:
     """
     Get a transaction by its UUID.
@@ -132,10 +128,7 @@ async def get_transaction_by_id(
     return transaction
 
 
-async def save_agent_log(
-    session: AsyncSession,
-    log: AgentExecutionLog
-) -> AgentExecutionLog:
+async def save_agent_log(session: AsyncSession, log: AgentExecutionLog) -> AgentExecutionLog:
     """
     Save an agent execution log entry.
 
@@ -151,21 +144,20 @@ async def save_agent_log(
 
     logger.debug(
         f"Agent log saved: {log.agent_name} for transaction {log.transaction_id}",
-        extra={"extra_data": {
-            "agent_name": log.agent_name,
-            "status": log.status,
-            "execution_time_ms": log.execution_time_ms
-        }}
+        extra={
+            "extra_data": {
+                "agent_name": log.agent_name,
+                "status": log.status,
+                "execution_time_ms": log.execution_time_ms,
+            }
+        },
     )
 
     return log
 
 
 async def get_transactions_by_batch(
-    session: AsyncSession,
-    batch_id: str,
-    limit: int = 100,
-    offset: int = 0
+    session: AsyncSession, batch_id: str, limit: int = 100, offset: int = 0
 ) -> List[Transaction]:
     """
     Get transactions by batch ID with pagination.
@@ -192,12 +184,129 @@ async def get_transactions_by_batch(
 
     logger.info(
         f"Retrieved {len(transactions)} transactions for batch {batch_id}",
-        extra={"extra_data": {
-            "batch_id": batch_id,
-            "limit": limit,
-            "offset": offset,
-            "count": len(transactions)
-        }}
+        extra={
+            "extra_data": {
+                "batch_id": batch_id,
+                "limit": limit,
+                "offset": offset,
+                "count": len(transactions),
+            }
+        },
+    )
+
+    return list(transactions)
+
+
+async def get_customer_transactions(
+    session: AsyncSession, customer_id: str, days: int = 30, limit: int = 1000
+) -> List[Transaction]:
+    """
+    Get historical transactions for a customer within a specified timeframe.
+    Used by Agent 3 (Behavioral Analyzer) for pattern detection.
+
+    Args:
+        session: Database session
+        customer_id: Customer identifier
+        days: Number of days to look back (default 30)
+        limit: Maximum number of transactions to return (default 1000)
+
+    Returns:
+        List of Transaction objects ordered by booking_datetime (most recent first)
+
+    Example:
+        >>> transactions = await get_customer_transactions(session, "CUST-001", days=30)
+        >>> len(transactions)
+        45
+    """
+    # Calculate start date (days ago from now)
+    start_date = datetime.utcnow() - timedelta(days=days)
+
+    query = (
+        select(Transaction)
+        .where(
+            and_(Transaction.customer_id == customer_id, Transaction.booking_datetime >= start_date)
+        )
+        .order_by(Transaction.booking_datetime.desc())
+        .limit(limit)
+    )
+
+    result = await session.execute(query)
+    transactions = result.scalars().all()
+
+    logger.info(
+        f"Retrieved {len(transactions)} historical transactions for customer {customer_id}",
+        extra={
+            "extra_data": {
+                "customer_id": customer_id,
+                "days": days,
+                "limit": limit,
+                "count": len(transactions),
+                "start_date": start_date.isoformat(),
+            }
+        },
+    )
+
+    return list(transactions)
+
+
+async def get_transactions_by_timeframe(
+    session: AsyncSession,
+    customer_id: str,
+    start_date: datetime,
+    end_date: datetime,
+    limit: int = 1000,
+) -> List[Transaction]:
+    """
+    Get transactions for a customer within a specific date range.
+    Used for precise timeframe analysis (e.g., last 24 hours, last 7 days).
+
+    Args:
+        session: Database session
+        customer_id: Customer identifier
+        start_date: Start of timeframe (inclusive)
+        end_date: End of timeframe (inclusive)
+        limit: Maximum number of transactions to return (default 1000)
+
+    Returns:
+        List of Transaction objects ordered by booking_datetime (most recent first)
+
+    Example:
+        >>> from datetime import datetime, timedelta
+        >>> now = datetime.utcnow()
+        >>> yesterday = now - timedelta(days=1)
+        >>> transactions = await get_transactions_by_timeframe(
+        ...     session, "CUST-001", yesterday, now
+        ... )
+        >>> len(transactions)
+        12
+    """
+    query = (
+        select(Transaction)
+        .where(
+            and_(
+                Transaction.customer_id == customer_id,
+                Transaction.booking_datetime >= start_date,
+                Transaction.booking_datetime <= end_date,
+            )
+        )
+        .order_by(Transaction.booking_datetime.desc())
+        .limit(limit)
+    )
+
+    result = await session.execute(query)
+    transactions = result.scalars().all()
+
+    logger.info(
+        f"Retrieved {len(transactions)} transactions for customer {customer_id} in timeframe",
+        extra={
+            "extra_data": {
+                "customer_id": customer_id,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "limit": limit,
+                "count": len(transactions),
+            }
+        },
     )
 
     return list(transactions)

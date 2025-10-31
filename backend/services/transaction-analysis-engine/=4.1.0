@@ -1,0 +1,14 @@
+Collecting pytest-cov
+  Downloading pytest_cov-7.0.0-py3-none-any.whl.metadata (31 kB)
+Collecting coverage>=7.10.6 (from coverage[toml]>=7.10.6->pytest-cov)
+  Downloading coverage-7.11.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (9.0 kB)
+Requirement already satisfied: pluggy>=1.2 in /usr/local/lib/python3.11/site-packages (from pytest-cov) (1.6.0)
+Requirement already satisfied: pytest>=7 in /usr/local/lib/python3.11/site-packages (from pytest-cov) (8.4.2)
+Requirement already satisfied: iniconfig>=1 in /usr/local/lib/python3.11/site-packages (from pytest>=7->pytest-cov) (2.3.0)
+Requirement already satisfied: packaging>=20 in /usr/local/lib/python3.11/site-packages (from pytest>=7->pytest-cov) (25.0)
+Requirement already satisfied: pygments>=2.7.2 in /usr/local/lib/python3.11/site-packages (from pytest>=7->pytest-cov) (2.19.2)
+Downloading pytest_cov-7.0.0-py3-none-any.whl (22 kB)
+Downloading coverage-7.11.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (248 kB)
+Installing collected packages: coverage, pytest-cov
+
+Successfully installed coverage-7.11.0 pytest-cov-7.0.0

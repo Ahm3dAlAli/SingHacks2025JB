@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
     AsyncSession,
     async_sessionmaker,
-    AsyncEngine
+    AsyncEngine,
 )
 from app.config import settings
 from app.utils.logger import logger
@@ -69,7 +69,7 @@ async def test_connection() -> bool:
     except Exception as e:
         logger.error(
             f"Database connection test failed: {e}",
-            extra={"extra_data": {"error_type": type(e).__name__}}
+            extra={"extra_data": {"error_type": type(e).__name__}},
         )
         return False
 

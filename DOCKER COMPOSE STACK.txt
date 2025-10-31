@@ -1,0 +1,53 @@
+┌────────────────────────────────────────────────────────────────────────┐
+  │                         DOCKER COMPOSE STACK                           │
+  └────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────┐
+  │  1. REGULATORY       │
+  │  INGESTION ENGINE    │
+  │  Port: 8001          │
+  │                      │
+  │  • Crawl MAS/FINMA/  │
+  │    HKMA websites     │
+  │  • Parse PDFs/HTML   │
+  │  • Extract rules     │
+  │  • Version control   │
+  │                      │
+  │  Owner: Other person │
+  └──────────┬───────────┘
+             │
+             │ writes regulatory_rules
+             ▼
+  ┌──────────────────────────────────────────────────────────────┐
+  │                      POSTGRESQL                              │
+  │                      Port: 5432                              │
+  │                                                              │
+  │  Shared Tables:                                              │
+  │  ├─ regulatory_rules      (from Service 1)                  │
+  │  ├─ transactions          (loaded by Service 2)             │
+  │  ├─ alerts                (from Service 3)                  │
+  │  ├─ risk_scores           (from Service 2)                  │
+  │  ├─ remediation_actions   (from Service 4)                  │
+  │  └─ audit_trail           (all services write here)         │
+  └──────────────────────────────────────────────────────────────┘
+             ▲                    ▲                    ▲
+             │                    │                    │
+  ┌──────────┴───────────┐ ┌──────┴──────────┐ ┌──────┴──────────┐
+  │  2. TRANSACTION      │ │  3. ALERT       │ │  4. REMEDIATION │
+  │  ANALYSIS ENGINE     │ │  SYSTEM         │ │  WORKFLOWS      │
+  │  (TAE)               │ │                 │ │                 │
+  │  Port: 8002          │ │  Port: 8003     │ │  Port: 8004     │
+  │                      │ │                 │ │                 │
+  │  YOUR BUILD:         │ │                 │ │                 │
+  │  • LangGraph agents  │ │  • Route alerts │ │  • Suggest      │
+  │  • Groq API calls    │ │  • Tailor msgs  │ │   actions       │
+  │  • Batch processing  │ │  • Front Office │ │  • Workflow     │
+  │  • Risk scoring      │ │  • Compliance   │ │   templates     │
+  │  • Behavioral        │ │  • Legal        │ │  • Audit trail  │
+  │    analysis          │ │  • SLA tracking │ │                 │
+  │                      │ │  • ACK tracking │ │  Owner: Other   │
+  │  Owner: YOU          │ │                 │ │         person  │
+  │                      │ │  Owner: Other   │ │                 │
+  │                      │ │         person  │ │                 │
+  └──────────────────────┘ └─────────────────┘ └─────────────────┘
+

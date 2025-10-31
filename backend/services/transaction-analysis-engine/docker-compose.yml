@@ -54,6 +54,7 @@ services:
       - "8002:8002"
     volumes:
       - ./app:/app/app
+      - ./tests:/app/tests
       - ./data:/app/data
       - ./logs:/app/logs
     depends_on:
