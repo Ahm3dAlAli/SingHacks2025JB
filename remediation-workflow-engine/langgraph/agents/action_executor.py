@@ -1,50 +1,20 @@
 from langchain_core.prompts import ChatPromptTemplate
-from typing import Dict, Any, List
+from typing import Dict, Any
 import json
 from datetime import datetime, timedelta
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
-from ..state import WorkflowState
-from services.email_service import EmailService
-from services.document_service import DocumentService
+from ..state import WorkflowState, ApprovalStatus
+from .approval_manager import ApprovalManager
 
 class ActionExecutor:
-    def __init__(self, groq_client, email_service: EmailService, document_service: DocumentService):
+    def __init__(self, groq_client, email_service, document_service, approval_manager: ApprovalManager):
         self.groq_client = groq_client
         self.email_service = email_service
         self.document_service = document_service
-        self.action_templates = self._load_action_templates()
-    
-    def _load_action_templates(self) -> Dict[str, Any]:
-        """Load action execution templates"""
-        return {
-            "request_edd_docs": {
-                "type": "email",
-                "template": "edd_document_request",
-                "recipients": ["customer_email", "relationship_manager"],
-                "sla": "24h",
-                "auto_reminder": True
-            },
-            "block_transactions": {
-                "type": "system",
-                "target": "core_banking",
-                "action": "block_transactions",
-                "sla": "1h",
-                "immediate": True
-            },
-            "notify_critical": {
-                "type": "notification", 
-                "channels": ["email", "slack", "sms"],
-                "recipients": ["senior_management", "compliance_team"],
-                "sla": "2h",
-                "urgent": True
-            }
-        }
-    
+        self.approval_manager = approval_manager
+        
     async def execute_action(self, state: WorkflowState, action: str, parameters: Dict[str, Any]) -> WorkflowState:
-        """Execute specific workflow action"""
+        """Execute specific workflow action including approval steps"""
         
         action_result = {
             "action": action,
@@ -54,14 +24,15 @@ class ActionExecutor:
         }
         
         try:
-            if action == "request_edd_docs":
-                result = await self._request_edd_documents(state, parameters)
-            elif action == "block_transactions":
-                result = await self._block_transactions(state, parameters)
-            elif action == "notify_critical":
-                result = await self._notify_critical_stakeholders(state, parameters)
-            elif action == "validate_documents":
-                result = await self._validate_documents(state, parameters)
+            if action.startswith("wait_"):
+                # This is an approval waiting action
+                result = await self._handle_approval_action(state, action, parameters)
+            elif action == "rm_initiate_edd":
+                result = await self._rm_initiate_edd(state, parameters)
+            elif action == "rm_pep_acknowledgment":
+                result = await self._rm_pep_acknowledgment(state, parameters)
+            elif action == "conditional_legal_review":
+                result = await self._conditional_legal_review(state, parameters)
             else:
                 result = await self._execute_custom_action(state, action, parameters)
             
@@ -80,135 +51,168 @@ class ActionExecutor:
         state["actions_taken"].append(action_result)
         state["updated_at"] = datetime.now()
         
-        # Add to audit trail
-        state["audit_trail"].append({
-            "timestamp": datetime.now().isoformat(),
-            "action": f"action_executed_{action}",
-            "details": f"Executed {action} with status {action_result['status']}",
-            "user": "system",
-            "workflow_instance_id": state["workflow_instance_id"]
-        })
-        
         return state
     
-    async def _request_edd_documents(self, state: WorkflowState, parameters: Dict) -> Dict[str, Any]:
-        """Execute EDD document request action"""
+    async def _handle_approval_action(self, state: WorkflowState, action: str, parameters: Dict) -> Dict[str, Any]:
+        """Handle approval waiting actions"""
         
-        # Generate personalized document request using Groq
+        if action == "wait_rm_approval":
+            role = "relationship_manager"
+        elif action == "wait_compliance_approval":
+            role = "compliance_officer"
+        elif action == "wait_legal_approval":
+            role = "legal"
+        else:
+            role = "relationship_manager"  # default
+        
+        # Request approval from the role
+        context = {
+            "sla": parameters.get("sla", "24h"),
+            "workflow_step": state.get("current_step"),
+            "risk_factors": state.get("risk_assessment", {}).get("key_risk_factors", []),
+            "customer_context": state["customer_profile"]
+        }
+        
+        state = await self.approval_manager.request_approval(state, role, context)
+        
+        return {
+            "action_type": "approval_request",
+            "role": role,
+            "status": "requested",
+            "requested_at": datetime.now().isoformat()
+        }
+    
+    async def _rm_initiate_edd(self, state: WorkflowState, parameters: Dict) -> Dict[str, Any]:
+        """Relationship Manager initiates EDD process"""
+        
+        # Generate EDD initiation request using Groq
         prompt = ChatPromptTemplate.from_template("""
-        Create a professional document request email for Enhanced Due Diligence.
+        Create an EDD initiation request for a Relationship Manager.
         
-        CUSTOMER: {customer_name}
-        CUSTOMER ID: {customer_id}
-        RISK LEVEL: {risk_level}
+        CUSTOMER: {customer_id}
+        RISK SCORE: {risk_score}
         JURISDICTION: {jurisdiction}
+        TRIGGERED RULES: {triggered_rules}
         
-        Required documents based on risk assessment:
-        {required_docs}
+        The Relationship Manager needs to:
+        1. Acknowledge the EDD requirement
+        2. Initiate contact with the customer
+        3. Coordinate document collection
+        4. Provide initial assessment
         
-        Write a professional, compliant email that:
-        1. Explains the regulatory requirement
-        2. Lists required documents clearly
-        3. Provides submission instructions
-        4. Includes deadline (7 days)
-        5. Maintains professional tone
+        Create a clear request with context and required actions.
         
-        Return the email subject and body.
+        Return JSON with request details.
         """)
         
         chain = prompt | self.groq_client
         
         response = await chain.ainvoke({
-            "customer_name": state["customer_profile"].get("name", "Valued Customer"),
             "customer_id": state["customer_id"],
-            "risk_level": state["severity"],
+            "risk_score": state["risk_score"],
             "jurisdiction": state["jurisdiction"],
-            "required_docs": json.dumps([
-                "Passport copy (certified)",
-                "Proof of address (last 3 months)",
-                "Source of funds declaration", 
-                "Source of wealth documentation",
-                "Business registration (if applicable)"
-            ], indent=2)
+            "triggered_rules": state["triggered_rules"]
         })
         
-        email_content = json.loads(response.content)
+        initiation_request = json.loads(response.content)
         
-        # Send email via email service
-        email_result = await self.email_service.send_edd_request(
-            to=parameters.get("customer_email"),
-            subject=email_content["subject"],
-            body=email_content["body"],
-            cc=parameters.get("relationship_manager")
+        # Request RM approval
+        state = await self.approval_manager.request_approval(
+            state, 
+            "relationship_manager",
+            {
+                "action": "initiate_edd",
+                "request_details": initiation_request,
+                "sla": "24h"
+            }
         )
         
         return {
-            "action_type": "email",
-            "recipients": [parameters.get("customer_email")],
-            "email_subject": email_content["subject"],
-            "email_sent": email_result["success"],
-            "message_id": email_result.get("message_id")
+            "action_type": "rm_edd_initiation",
+            "status": "approval_requested",
+            "initiation_request": initiation_request
         }
     
-    async def _block_transactions(self, state: WorkflowState, parameters: Dict) -> Dict[str, Any]:
-        """Execute transaction blocking action"""
+    async def _rm_pep_acknowledgment(self, state: WorkflowState, parameters: Dict) -> Dict[str, Any]:
+        """Relationship Manager acknowledges PEP relationship"""
         
-        # In production, this would integrate with core banking API
-        blocked_transactions = []
-        
-        for tx_id in state["transaction_ids"]:
-            # Simulate API call to core banking system
-            block_result = {
-                "transaction_id": tx_id,
-                "action": "blocked",
-                "timestamp": datetime.now().isoformat(),
-                "reason": f"AML alert {state['alert_id']}",
-                "blocked_by": "system"
-            }
-            blocked_transactions.append(block_result)
-        
-        return {
-            "action_type": "system_block",
-            "transactions_blocked": len(blocked_transactions),
-            "block_details": blocked_transactions,
-            "system": "core_banking"
-        }
-    
-    async def _validate_documents(self, state: WorkflowState, parameters: Dict) -> Dict[str, Any]:
-        """Validate uploaded documents using AI"""
-        
+        # Generate PEP acknowledgment request
         prompt = ChatPromptTemplate.from_template("""
-        Validate these EDD documents for compliance requirements:
+        Create a PEP acknowledgment request for a Relationship Manager.
         
-        DOCUMENTS TO VALIDATE:
-        {documents}
+        CUSTOMER: {customer_id}
+        PEP STATUS: {pep_status}
+        RISK LEVEL: {risk_level}
         
-        CUSTOMER CONTEXT:
-        {customer_context}
+        The Relationship Manager must:
+        1. Acknowledge the PEP relationship
+        2. Confirm they understand enhanced due diligence requirements
+        3. Provide any additional context about the relationship
+        4. Acknowledge potential reputational risks
         
-        Validation checklist:
-        ✓ Document authenticity and legibility
-        ✓ Expiry dates (if applicable)  
-        ✓ Name matching customer records
-        ✓ Address verification
-        ✓ Completeness of information
-        ✓ Consistency across documents
-        
-        Return JSON with validation results for each document.
+        Return JSON with acknowledgment request.
         """)
         
         chain = prompt | self.groq_client
         
         response = await chain.ainvoke({
-            "documents": json.dumps(parameters.get("documents", []), indent=2),
-            "customer_context": json.dumps(state["customer_profile"], indent=2)
+            "customer_id": state["customer_id"],
+            "pep_status": state["customer_profile"].get("is_pep", False),
+            "risk_level": state["severity"]
         })
         
-        validation_results = json.loads(response.content)
+        acknowledgment_request = json.loads(response.content)
+        
+        # Request RM approval
+        state = await self.approval_manager.request_approval(
+            state,
+            "relationship_manager",
+            {
+                "action": "pep_acknowledgment",
+                "request_details": acknowledgment_request,
+                "sla": "2h"
+            }
+        )
         
         return {
-            "action_type": "document_validation",
-            "documents_validated": len(parameters.get("documents", [])),
-            "validation_results": validation_results,
-            "overall_status": "valid" if all(r.get("valid", False) for r in validation_results) else "invalid"
+            "action_type": "rm_pep_acknowledgment",
+            "status": "approval_requested",
+            "acknowledgment_request": acknowledgment_request
         }
+    
+    async def _conditional_legal_review(self, state: WorkflowState, parameters: Dict) -> Dict[str, Any]:
+        """Conditionally route to legal review based on criteria"""
+        
+        should_escalate = await self.approval_manager.should_escalate_to_legal(state)
+        
+        if should_escalate:
+            # Request legal approval
+            state = await self.approval_manager.request_approval(
+                state,
+                "legal",
+                {
+                    "action": "legal_review",
+                    "escalation_reason": "Met criteria for mandatory legal review",
+                    "criteria_met": [
+                        "High risk score",
+                        "PEP customer",
+                        "Sanctions triggers",
+                        "High-risk jurisdiction",
+                        "Large transaction amounts"
+                    ],
+                    "sla": "72h"
+                }
+            )
+            
+            return {
+                "action_type": "conditional_legal_escalation",
+                "decision": "escalated_to_legal",
+                "reason": "Met escalation criteria"
+            }
+        else:
+            # Continue without legal review
+            return {
+                "action_type": "conditional_legal_escalation",
+                "decision": "no_escalation_needed",
+                "reason": "Did not meet escalation criteria"
+            }

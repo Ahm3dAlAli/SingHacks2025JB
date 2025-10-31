@@ -7,23 +7,31 @@ from .state import WorkflowState
 from .agents.workflow_orchestrator import WorkflowOrchestrator
 from .agents.decision_engine import DecisionEngine
 from .agents.action_executor import ActionExecutor
+from .agents.approval_manager import ApprovalManager
 from .agents.compliance_checker import ComplianceChecker
 from .agents.escalation_manager import EscalationManager
+
+import json
+from datetime import datetime, timedelta
+from langchain_core.prompts import ChatPromptTemplate
+
 
 class RemediationWorkflowGraph:
     def __init__(self, groq_client, email_service, document_service, audit_service):
         self.groq_client = groq_client
         self.workflow_orchestrator = WorkflowOrchestrator(groq_client)
         self.decision_engine = DecisionEngine(groq_client)
-        self.action_executor = ActionExecutor(groq_client, email_service, document_service)
+        self.approval_manager = ApprovalManager(groq_client)
+        self.action_executor = ActionExecutor(groq_client, email_service, document_service, self.approval_manager)
         self.compliance_checker = ComplianceChecker(groq_client)
         self.escalation_manager = EscalationManager(groq_client, audit_service)
+        
         
         # Build the graph
         self.graph = self._build_graph()
     
     def _build_graph(self) -> StateGraph:
-        """Build the LangGraph workflow"""
+        """Build the LangGraph workflow with approval steps"""
         workflow = StateGraph(WorkflowState)
         
         # Define nodes
@@ -33,6 +41,7 @@ class RemediationWorkflowGraph:
         workflow.add_node("select_workflow", self.workflow_orchestrator.select_workflow_template)
         workflow.add_node("initialize_workflow", self.workflow_orchestrator.initialize_workflow)
         workflow.add_node("execute_workflow", self._execute_workflow_steps)
+        workflow.add_node("check_approvals", self.workflow_orchestrator.check_approval_status)
         workflow.add_node("check_compliance", self.compliance_checker.verify_compliance)
         workflow.add_node("handle_escalation", self.escalation_manager.check_escalation)
         workflow.add_node("finalize_workflow", self._finalize_workflow)
@@ -49,11 +58,22 @@ class RemediationWorkflowGraph:
         # Conditional edges from workflow execution
         workflow.add_conditional_edges(
             "execute_workflow",
-            self._should_escalate,
+            self._should_wait_for_approval,
             {
-                "escalate": "handle_escalation",
+                "wait_approval": "check_approvals",
                 "continue": "check_compliance",
+                "escalate": "handle_escalation",
                 "complete": "finalize_workflow"
+            }
+        )
+        
+        workflow.add_conditional_edges(
+            "check_approvals",
+            self._approval_status_check,
+            {
+                "approved": "execute_workflow",
+                "rejected": "handle_escalation",
+                "pending": "check_approvals"  # Wait longer
             }
         )
         
@@ -62,6 +82,54 @@ class RemediationWorkflowGraph:
         workflow.add_edge("finalize_workflow", END)
         
         return workflow.compile()
+    
+    def _should_wait_for_approval(self, state: WorkflowState) -> str:
+        """Determine if workflow should wait for approval"""
+        
+        # Check if current step requires approval
+        template = self.workflow_orchestrator.workflow_templates[state["selected_workflow"]]
+        current_step = state.get("current_step")
+        
+        if not current_step or current_step == "completed":
+            return "complete"
+            
+        current_step_def = next(
+            (step for step in template["steps"] if step["id"] == current_step), 
+            None
+        )
+        
+        if not current_step_def:
+            return "complete"
+            
+        # Check if this is an approval step
+        if not current_step_def.get("auto", True):
+            role = current_step_def.get("role")
+            approval_status = self.workflow_orchestrator._get_approval_status(state, role)
+            
+            if approval_status == "pending":
+                return "wait_approval"
+            elif approval_status == "rejected":
+                return "escalate"
+            elif approval_status == "approved":
+                return "continue"
+        
+        return "continue"
+    
+    def _approval_status_check(self, state: WorkflowState) -> str:
+        """Check approval status and determine next step"""
+        
+        # Check if any approvals are still pending
+        pending_approvals = state.get("pending_approvals", [])
+        if pending_approvals:
+            # Check if any SLA breaches
+            for approval in pending_approvals:
+                requested_at = datetime.fromisoformat(approval["requested_at"].replace('Z', '+00:00'))
+                if datetime.now() - requested_at > timedelta(hours=24):  # 24h SLA
+                    return "escalate"
+            
+            return "pending"  # Continue waiting
+        
+        return "approved"  # All approvals received
     
     async def _receive_alert(self, state: WorkflowState) -> WorkflowState:
         """Receive and validate alert input"""

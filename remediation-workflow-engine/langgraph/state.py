@@ -1,7 +1,14 @@
-from typing import Dict, List, Optional, Any, Annotated
+from typing import Dict, List, Optional, Any, Annotated, Literal
 from typing_extensions import TypedDict
 from datetime import datetime
 from langgraph.graph import add_messages
+from enum import Enum
+
+class ApprovalStatus(Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    ESCALATED = "escalated"
 
 class WorkflowState(TypedDict):
     # Input from alert system
@@ -22,6 +29,15 @@ class WorkflowState(TypedDict):
     step_status: str
     step_start_time: datetime
     step_deadline: datetime
+    
+    # Human approval states
+    rm_approval: Dict[str, Any]  # Relationship Manager approval
+    compliance_approval: Dict[str, Any]  # Compliance Officer approval  
+    legal_approval: Dict[str, Any]  # Legal team approval
+    
+    # Approval tracking
+    pending_approvals: List[Dict[str, Any]]
+    approval_history: List[Dict[str, Any]]
     
     # Decision engine outputs
     selected_workflow: str
