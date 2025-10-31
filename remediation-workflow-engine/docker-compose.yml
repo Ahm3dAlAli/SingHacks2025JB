@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  remediation-workflows:
+    build: .
+    ports:
+      - "8004:8004"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DATABASE_URL=postgresql://user:pass@db:5432/aml_workflows
+      - SMTP_SERVER=smtp.company.com
+      - SMTP_PORT=587
+    depends_on:
+      - db
+    volumes:
+      - ./logs:/app/logs
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=aml_workflows
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

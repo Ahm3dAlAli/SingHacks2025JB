@@ -1,0 +1,36 @@
+# Core Framework
+fastapi
+uvicorn
+pydantic
+
+# LangGraph & LangChain
+langgraph
+langchain
+langchain-groq
+langchain-core
+langsmith
+
+# Database
+sqlalchemy
+databases
+aiosqlite
+alembic
+
+# Groq
+groq
+
+# Email & HTTP
+aiohttp
+aiosmtplib
+jinja2
+
+# Utilities
+python-dotenv
+python-multipart
+aiofiles
+python-dateutil
+
+# Development
+pytest
+pytest-asyncio
+greenlet
