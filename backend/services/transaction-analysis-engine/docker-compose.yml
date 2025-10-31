@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  postgres:
+    image: postgres:15
+    container_name: tae_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aml_monitoring}
+      POSTGRES_USER: ${POSTGRES_USER:-tae_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tae_password_change_me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./database/seed_rules.sql:/docker-entrypoint-initdb.d/02_seed_rules.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tae_user} -d ${POSTGRES_DB:-aml_monitoring}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - tae_network
+    restart: unless-stopped
+
+  # Transaction Analysis Engine (TAE) Service
+  tae:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tae_service
+    environment:
+      # Database Configuration
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-aml_monitoring}
+      POSTGRES_USER: ${POSTGRES_USER:-tae_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tae_password_change_me}
+
+      # Groq API Configuration
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.1-70b-versatile}
+
+      # Application Configuration
+      TAE_PORT: ${TAE_PORT:-8002}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      WORKERS: ${WORKERS:-4}
+
+      # Environment
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./app:/app/app
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8002/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - tae_network
+    restart: unless-stopped
+
+# Networks
+networks:
+  tae_network:
+    driver: bridge
+
+# Volumes
+volumes:
+  postgres_data:
+    driver: local
