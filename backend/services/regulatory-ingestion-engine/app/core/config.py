@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 50
     
     # External services
-    GROQ_API_KEY: Optional[str] = None
+    GROQ_API_KEY: Optional[str] = "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"
     
     # Add validators
     @validator("DATABASE_URI", pre=True)

@@ -22,8 +22,11 @@ COPY . .
 # Set permissions
 RUN chmod -R 777 /app/data
 
-# Install spaCy model
-RUN pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
+# Install spaCy and download the model
+RUN python -m pip install --upgrade pip && \
+    pip install --no-cache-dir spacy==3.7.2 && \
+    pip install --no-cache-dir https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl && \
+    python -c "import spacy; spacy.load('en_core_web_sm')"
 
 # Expose the port the app runs on
 EXPOSE 8003

@@ -19,6 +19,7 @@ lxml==4.9.3
 
 # NLP/ML
 spacy==3.7.2
+groq==0.4.1
 
 # Testing
 pytest==7.4.3
@@ -29,4 +30,3 @@ httpx==0.25.1
 loguru==0.7.2
 python-dateutil==2.8.2
 python-slugify==8.0.1
-groq>=0.33.0  # Using the latest stable version

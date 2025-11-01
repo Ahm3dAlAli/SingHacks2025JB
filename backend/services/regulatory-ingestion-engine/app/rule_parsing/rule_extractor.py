@@ -25,12 +25,24 @@ class RegexRuleExtractor(RuleExtractor):
             nlp_model: Name of the spaCy model to use
         """
         try:
+            # Try to load the model directly first
             self.nlp = spacy.load(nlp_model)
-        except OSError:
-            logger.warning(f"spaCy model '{nlp_model}' not found. Downloading...")
-            import spacy.cli
-            spacy.cli.download(nlp_model)
-            self.nlp = spacy.load(nlp_model)
+            logger.info(f"Successfully loaded spaCy model: {nlp_model}")
+        except OSError as e:
+            logger.warning(f"spaCy model '{nlp_model}' not found. Attempting to download...")
+            try:
+                import subprocess
+                import sys
+                # Try to download the model using python -m spacy download
+                subprocess.check_call([sys.executable, "-m", "spacy", "download", nlp_model])
+                self.nlp = spacy.load(nlp_model)
+                logger.info(f"Successfully downloaded and loaded spaCy model: {nlp_model}")
+            except Exception as e:
+                logger.error(f"Failed to load or download spaCy model: {e}")
+                logger.warning("Falling back to small English model without word vectors")
+                self.nlp = spacy.blank('en')
+                if self.nlp.get_pipe('sentencizer') is None:
+                    self.nlp.add_pipe('sentencizer')
         
         # Common patterns for identifying regulatory rules
         self.patterns = {

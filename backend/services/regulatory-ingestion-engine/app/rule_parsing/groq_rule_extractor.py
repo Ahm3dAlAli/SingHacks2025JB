@@ -21,14 +21,14 @@ logger = logging.getLogger(__name__)
 class GroqRuleExtractor(RuleExtractor):
     """Extracts rules using Groq's language model API."""
     
-    def __init__(self, api_key: Optional[str] = None, model: str = "mixtral-8x7b-32768"):
+    def __init__(self, api_key: Optional[str] = None, model: str = "llama-3.3-70b-versatile"):
         """Initialize the Groq rule extractor.
         
         Args:
             api_key: Groq API key. If not provided, will try to get from GROQ_API_KEY env var.
             model: The Groq model to use for rule extraction.
         """
-        self.api_key = api_key or os.getenv("GROQ_API_KEY")
+        self.api_key = api_key or os.getenv("GROQ_API_KEY", "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")
         if not self.api_key:
             raise ValueError("Groq API key is required. Either pass it to the constructor "
                            "or set the GROQ_API_KEY environment variable.")
@@ -36,33 +36,37 @@ class GroqRuleExtractor(RuleExtractor):
         self.client = Groq(api_key=self.api_key)
         self.model = model
         
-        # Default prompt template
+        # Default prompt template - using double curly braces to escape them in the JSON example
         self.prompt_template = """
-        Read the below Document and your goal is to find all transaction monitoring rules and return the response in the format of JSON object with the following structure:
+        You are a regulatory compliance expert. Your task is to analyze the following document and extract all relevant regulatory rules, requirements, and compliance obligations.
         
+        IMPORTANT: The document may contain multiple sections. Pay attention to the section headers (marked with ===== SECTION: [title] =====) as they provide important context.
+        
+        Return the results as a JSON array with the following structure for each rule:
         [
-            {
-                "category": "Category or type of rule",
-                "rule": "The specific rule text",
-                "key_elements": ["Key element 1", "Key element 2", ...],
-                "examples": ["Example 1", "Example 2", ...],
-                "notes": "Any additional notes or context"
-            },
-            ...
+            {{
+                "category": "The type of rule (e.g., 'Transaction Monitoring', 'Reporting', 'Record Keeping')",
+                "rule": "The specific regulatory requirement or rule text",
+                "key_elements": ["Important elements or conditions of the rule"],
+                "examples": ["Example scenarios or applications of the rule"],
+                "notes": "Any additional context or implementation guidance"
+            }}
         ]
         
-        Focus on identifying:
-        - Transaction monitoring requirements
-        - Reporting obligations
-        - Record-keeping requirements
-        - Risk assessment criteria
-        - Thresholds and limits
-        - Compliance procedures
+        Focus on extracting:
+        1. Explicit rules and requirements
+        2. Implied obligations
+        3. Quantitative thresholds or limits
+        4. Required procedures or processes
+        5. Reporting requirements
+        6. Record-keeping obligations
         
-        Be thorough and extract all relevant rules, even if they are implied or not explicitly stated.
+        Be thorough and extract as many rules as possible. Include rules that are explicitly stated as well as those that can be reasonably inferred from the text.
         
-        Document Content:
+        DOCUMENT CONTENT:
         {document_text}
+        
+        Return ONLY valid JSON. Do not include any explanatory text before or after the JSON array.
         """
     
     async def _generate_document_title(self, text: str) -> str:
@@ -98,12 +102,16 @@ class GroqRuleExtractor(RuleExtractor):
             logger.warning("No content or sections found in the document")
             return []
         
-        # Combine all sections into a single text
+        # Combine all sections into a single text with clear section headers
         full_text = "\n\n".join(
-            f"{section.title}\n{section.content}" 
+            f"===== SECTION: {section.title} =====\n{section.content}"
             for section in document.content.sections
             if section.content.strip()
         )
+        
+        # Add raw text if available
+        if document.content.raw_text:
+            full_text = f"{document.content.raw_text}\n\n{full_text}"
         
         if not full_text.strip():
             logger.warning("No text content found in document sections")
@@ -111,8 +119,15 @@ class GroqRuleExtractor(RuleExtractor):
         
         try:
             # Generate the prompt
+            # Truncate the text if it's too long (Groq has token limits)
+            max_length = 100000  # Leave some room for the prompt
+            if len(full_text) > max_length:
+                logger.warning(f"Document text too long ({len(full_text)} chars), truncating to {max_length} chars")
+                full_text = full_text[:max_length] + "\n[CONTENT TRUNCATED]"
+                
             prompt = self.prompt_template.format(document_text=full_text)
-            
+            logger.info(f"Sending prompt to Groq (length: {len(prompt)} chars)")
+                
             # Call Groq API
             try:
                 response = self.client.chat.completions.create(
@@ -140,17 +155,17 @@ class GroqRuleExtractor(RuleExtractor):
             # Parse the JSON response
             try:
                 rules_data = json.loads(response_content)
-                if not isinstance(rules_data, list):
-                    if 'rules' in rules_data:
-                        rules_data = rules_data['rules']
-                    else:
-                        rules_data = [rules_data]
+                if 'rules' in rules_data:
+                    rules_data = rules_data['rules']
+                else:
+                    rules_data = [rules_data]
                 
-                # Convert to ExtractedRule objects
+                # Convert the extracted rules to ExtractedRule objects
+                document_id = document.metadata.document_id if document.metadata else "unknown_document"
                 return [
-                    self._create_rule(rule_data, document.document_id)
+                    self._create_rule(rule_data, document_id)
                     for rule_data in rules_data
-                    if rule_data  # Skip empty entries
+                    if rule_data.get("rule")  # Only include rules with actual content
                 ]
                 
             except json.JSONDecodeError as e:
@@ -173,9 +188,15 @@ class GroqRuleExtractor(RuleExtractor):
         # Map category to rule type
         rule_type = self._infer_rule_type(rule_text, category)
         
+        # Create a hashable version of the rule data for the ID
+        rule_data_copy = rule_data.copy()
+        for key, value in rule_data_copy.items():
+            if isinstance(value, (list, dict)):
+                rule_data_copy[key] = str(value)  # Convert lists/dicts to strings for hashing
+        
         # Create the rule
         rule = ExtractedRule(
-            rule_id=f"groq_{hash(frozenset(rule_data.items())):x}",
+            rule_id=f"groq_{hash(frozenset(rule_data_copy.items())):x}",
             rule_type=rule_type,
             status=RuleStatus.ACTIVE,
             title=f"{category}: {rule_text[:50]}..." if len(rule_text) > 50 else f"{category}: {rule_text}",

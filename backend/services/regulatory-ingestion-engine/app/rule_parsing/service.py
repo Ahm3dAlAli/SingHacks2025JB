@@ -2,12 +2,14 @@
 Rule processing service that coordinates rule extraction and transformation.
 """
 import logging
+import os
 from typing import List, Dict, Any, Optional, Type
 from pathlib import Path
 
 from ..processing.models import ProcessedDocument
 from .base import ExtractedRule, RuleExtractor, RuleTransformer, RuleValidator
 from .rule_extractor import RegexRuleExtractor
+from .groq_rule_extractor import GroqRuleExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +21,18 @@ class RuleProcessingService:
         self.transformers: Dict[str, RuleTransformer] = {}
         self.validators: List[RuleValidator] = []
         
-        # Register default extractor
+        # Register default extractors
         self.register_extractor(RegexRuleExtractor())
+        
+        # Register Groq extractor if API key is available
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if groq_api_key:
+            try:
+                self.register_extractor(GroqRuleExtractor(api_key=groq_api_key))
+            except Exception as e:
+                logger.warning(f"Failed to initialize GroqRuleExtractor: {str(e)}")
+        else:
+            logger.warning("GROQ_API_KEY not found in environment variables. GroqRuleExtractor will not be available.")
     
     def register_extractor(self, extractor: RuleExtractor) -> None:
         """Register a rule extractor.
