@@ -25,21 +25,13 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: Union[str, List[str]] = "*"
     
-    @validator("CORS_ORIGINS", pre=True)
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
-        elif isinstance(v, (list, str)):
-            return v
-        return v
-    
     # Database
     DB_HOST: str
     DB_PORT: str
     DB_USER: str
     DB_PASSWORD: str
     DB_NAME: str
-    DATABASE_URI: Optional[PostgresDsn] = None
+    DATABASE_URI: Optional[str] = None
     
     # File storage
     DOCUMENT_STORAGE_PATH: str = "./data/documents"
@@ -54,7 +46,7 @@ class Settings(BaseSettings):
     def assemble_db_connection(cls, v: Optional[str], values: dict) -> str:
         if isinstance(v, str):
             return v
-        
+
         # Convert port to integer if it's a string
         port = values.get("DB_PORT")
         if isinstance(port, str):
@@ -62,17 +54,15 @@ class Settings(BaseSettings):
                 port = int(port)
             except (ValueError, TypeError):
                 port = 5432  # Default PostgreSQL port
-        
-        return str(
-            PostgresDsn.build(
-                scheme="postgresql",
-                username=values.get("DB_USER"),
-                password=values.get("DB_PASSWORD"),
-                host=values.get("DB_HOST"),
-                port=port or 5432,
-                path=f"/{values.get('DB_NAME') or ''}",
-            )
-        )
+
+        # Build database URI manually to avoid Pydantic v2 issues
+        db_host = values.get("DB_HOST", "localhost")
+        db_port = port or 5432
+        db_user = values.get("DB_USER", "postgres")
+        db_pass = values.get("DB_PASSWORD", "postgres")
+        db_name = values.get("DB_NAME", "")
+
+        return f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
     
     @validator("CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v) -> List[str]:

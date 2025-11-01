@@ -26,9 +26,9 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():
-    ""
+    """
     Dependency function to get DB session.
-    
+
     Yields:
         Session: SQLAlchemy database session
     """

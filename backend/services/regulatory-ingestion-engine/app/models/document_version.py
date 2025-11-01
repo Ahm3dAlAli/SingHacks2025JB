@@ -2,7 +2,7 @@
 DocumentVersion model for versioning regulatory documents.
 """
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import Column, Text, String, Integer, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID

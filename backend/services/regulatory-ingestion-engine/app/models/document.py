@@ -65,7 +65,7 @@ class Document(BaseModel):
     file_type = Column(String(50), nullable=True)  # 'pdf', 'docx', 'html', etc.
     file_size = Column(Integer, nullable=True)  # Size in bytes
     checksum = Column(String(64), nullable=True)  # For change detection
-    metadata = Column(JSONB, default=dict)  # Additional metadata
+    metadata_ = Column('metadata', JSONB, default=dict)  # Additional metadata (using metadata_ to avoid SQLAlchemy conflict)
     
     # Relationships
     source = relationship("DocumentSource", back_populates="documents")

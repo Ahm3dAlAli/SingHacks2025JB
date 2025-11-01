@@ -2,13 +2,17 @@
 DocumentSource model for tracking sources of regulatory documents.
 """
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 
 from sqlalchemy import Column, String, Text, Boolean, JSON, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 import uuid
 
 from app.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.models.document import Document
 
 class DocumentSource(BaseModel):
     """
@@ -22,9 +26,9 @@ class DocumentSource(BaseModel):
     source_type = Column(String(50), nullable=False)  # 'API', 'EMAIL', 'RSS', 'UPLOAD', etc.
     config = Column(JSON)  # Configuration specific to the source type
     is_active = Column(Boolean, default=True)
-    
+
     # Relationships
-    documents = List["Document"]  # Will be set up by backref in Document model
+    documents = relationship("Document", back_populates="source")
     
     def __repr__(self) -> str:
         return f"<DocumentSource(name='{self.name}', type='{self.source_type}')>"

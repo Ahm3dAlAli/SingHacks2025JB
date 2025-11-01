@@ -28,8 +28,8 @@ class RegexRuleExtractor(RuleExtractor):
             self.nlp = spacy.load(nlp_model)
         except OSError:
             logger.warning(f"spaCy model '{nlp_model}' not found. Downloading...")
-            import spacy.cli
-            spacy.cli.download(nlp_model)
+            from spacy.cli import download
+            download(nlp_model)
             self.nlp = spacy.load(nlp_model)
         
         # Common patterns for identifying regulatory rules

@@ -27,9 +27,9 @@ class BaseModel:
     updated_at: Mapped[datetime] = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
     
     def to_dict(self) -> Dict[str, Any]:
-        ""
+        """
         Convert model instance to dictionary.
-        
+
         Returns:
             Dict[str, Any]: Dictionary representation of the model
         """
@@ -50,13 +50,5 @@ class BaseModel:
                 setattr(self, key, value)
         self.updated_at = datetime.utcnow()
 
-# Import all models to ensure they are registered with SQLAlchemy
-# This must be at the bottom to avoid circular imports
-from app.models.document import Document  # noqa
-from app.models.document_source import DocumentSource  # noqa
-from app.models.document_version import DocumentVersion  # noqa
-from app.models.rule import Rule  # noqa
-from app.models.rule_attribute import RuleAttribute  # noqa
-from app.models.rule_relationship import RuleRelationship  # noqa
-from app.models.processing_log import ProcessingLog  # noqa
-from app.models.audit_trail import AuditTrail  # noqa
+# Note: Model imports removed to avoid circular dependencies
+# Models are registered with SQLAlchemy when they are imported elsewhere

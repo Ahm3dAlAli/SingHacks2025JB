@@ -53,26 +53,27 @@ class Rule(BaseModel):
     effective_date = Column(Date, nullable=True)
     expiry_date = Column(Date, nullable=True)
     status = Column(SQLEnum(RuleStatus), default=RuleStatus.DRAFT)
-    metadata = Column(JSONB, default=dict)  # Additional metadata
+    metadata_ = Column('metadata', JSONB, default=dict)  # Additional metadata (using metadata_ to avoid SQLAlchemy conflict)
     
     # Relationships
     document = relationship("Document", back_populates="rules")
     document_version = relationship("DocumentVersion", back_populates="rules")
     attributes = relationship(
-        "RuleAttribute", 
+        "RuleAttribute",
         back_populates="rule",
         cascade="all, delete-orphan"
     )
-    source_relationships = relationship(
-        "RuleRelationship", 
-        foreign_keys="[RuleRelationship.source_rule_id]",
-        back_populates="source_rule"
-    )
-    target_relationships = relationship(
-        "RuleRelationship", 
-        foreign_keys="[RuleRelationship.target_rule_id]",
-        back_populates="target_rule"
-    )
+    # Note: RuleRelationship model not yet implemented
+    # source_relationships = relationship(
+    #     "RuleRelationship",
+    #     foreign_keys="[RuleRelationship.source_rule_id]",
+    #     back_populates="source_rule"
+    # )
+    # target_relationships = relationship(
+    #     "RuleRelationship",
+    #     foreign_keys="[RuleRelationship.target_rule_id]",
+    #     back_populates="target_rule"
+    # )
     
     def __repr__(self) -> str:
         return f"<Rule(id='{self.id}', type='{self.rule_type}', summary='{self.summary[:50]}...')>"
@@ -192,7 +193,7 @@ class Rule(BaseModel):
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "metadata": self.metadata or {}
+            "metadata": self.metadata_ or {}
         }
         
         if include_attributes:
