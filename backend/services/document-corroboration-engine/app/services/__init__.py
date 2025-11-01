@@ -1,0 +1,1 @@
+"""External service wrappers (OCR, vision, GROQ, etc)."""

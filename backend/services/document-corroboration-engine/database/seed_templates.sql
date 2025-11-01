@@ -1,0 +1,2 @@
+-- SQL to seed template data
+-- TODO: add INSERT statements
