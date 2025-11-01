@@ -35,6 +35,8 @@ export default function AlertsManagerPage() {
   const [ruleInfoMap, setRuleInfoMap] = useState<Record<string, RuleInfo>>({});
   const [aiMap, setAiMap] = useState<Record<string, { loading: boolean; summary?: string; recommendation?: string; error?: string }>>({});
   const [explainMap, setExplainMap] = useState<Record<string, { loading: boolean; open: boolean; error?: string; data?: ExplainData }>>({});
+  const [commentMap, setCommentMap] = useState<Record<string, string>>({});
+  const [busyMap, setBusyMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!isLoggedIn()) router.replace("/login");
@@ -61,7 +63,7 @@ export default function AlertsManagerPage() {
       try {
         // initialize AI map as loading
         setAiMap(Object.fromEntries(data.items.map((a) => [a.id, { loading: true }])));
-        setExplainMap(Object.fromEntries(data.items.map((a) => [a.id, { loading: true, open: false }])));
+        setExplainMap(Object.fromEntries(data.items.map((a) => [a.id, { loading: true, open: true }])));
         const entries = await Promise.all(
           data.items.map(async (a) => {
             try {
@@ -94,11 +96,11 @@ export default function AlertsManagerPage() {
           data.items.map(async (a) => {
             try {
               const eRes = await fetch(`/api/agent/explain/${a.id}`, { method: "POST" });
-              if (!eRes.ok) return [a.id, { loading: false, open: false, error: "Failed to load rationale" }] as const;
+              if (!eRes.ok) return [a.id, { loading: false, open: true, error: "Failed to load rationale" }] as const;
               const e = (await eRes.json()) as { rationale: ExplainData };
-              return [a.id, { loading: false, open: false, data: e.rationale }] as const;
+              return [a.id, { loading: false, open: true, data: e.rationale }] as const;
             } catch {
-              return [a.id, { loading: false, open: false, error: "Error" }] as const;
+              return [a.id, { loading: false, open: true, error: "Error" }] as const;
             }
           })
         );
@@ -138,6 +140,43 @@ export default function AlertsManagerPage() {
     await load();
   }
 
+  async function actWithDecision(a: AlertItem, decision: "approve" | "hold" | "escalate") {
+    try {
+      setBusyMap((m) => ({ ...m, [a.id]: true }));
+      const reason = commentMap[a.id]?.trim() || undefined;
+      // Record feedback regardless of status change
+      await fetch(`/api/agent/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: a.id, decision, reason }),
+      });
+      // Map decision to alert status update
+      if (decision === "approve") {
+        await fetch(`/api/alerts/${a.id}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "closed" }),
+        });
+      } else if (decision === "hold") {
+        await fetch(`/api/alerts/${a.id}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "acknowledged" }),
+        });
+      } else if (decision === "escalate") {
+        await fetch(`/api/alerts/${a.id}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "in_progress" }),
+        });
+      }
+      setCommentMap((m) => ({ ...m, [a.id]: "" }));
+      await load();
+    } finally {
+      setBusyMap((m) => ({ ...m, [a.id]: false }));
+    }
+  }
+
   function severityClass(s: AlertItem["severity"]) {
     switch (s) {
       case "critical":
@@ -150,9 +189,7 @@ export default function AlertsManagerPage() {
         return "bg-emerald-600 text-white";
     }
   }
-  function toggleExplain(id: string) {
-    setExplainMap((m) => ({ ...m, [id]: { ...(m[id] ?? { loading: false, open: false }), open: !(m[id]?.open ?? false) } }));
-  }
+  // Explanation panels are shown by default for every card
 
   // AI summaries are loaded automatically in load()
 
@@ -292,84 +329,96 @@ export default function AlertsManagerPage() {
                   <span className="text-zinc-500">No summary yet.</span>
                 )}
               </div>
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-3 flex flex-col gap-2">
+                <input
+                  value={commentMap[a.id] ?? ""}
+                  onChange={(e) => setCommentMap((m) => ({ ...m, [a.id]: e.target.value }))}
+                  placeholder="Add comment (optional)"
+                  className="w-full rounded border bg-white p-2 text-xs dark:border-zinc-700 dark:bg-zinc-950"
+                />
+                <div className="flex items-center gap-2">
                 <Link
                   href={`/alerts/${a.id}`}
                   className="rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
                 >
                   View
                 </Link>
-                {(a.status === "new" || a.status !== "closed") && (
-                  <button
-                    onClick={() => quickAction(a)}
-                    className="rounded border px-3 py-1.5 text-xs"
-                  >
-                    {a.status === "new"
-                      ? "Acknowledge"
-                      : a.status !== "closed"
-                      ? "Close"
-                      : ""}
-                  </button>
-                )}
-                <button onClick={() => toggleExplain(a.id)} className="rounded border px-3 py-1.5 text-xs">
-                  {explainMap[a.id]?.open ? "Hide" : "See more"}
+                <button
+                  disabled={busyMap[a.id]}
+                  onClick={() => actWithDecision(a, "approve")}
+                  className="rounded border px-3 py-1.5 text-xs disabled:opacity-60"
+                >
+                  Approve
                 </button>
+                <button
+                  disabled={busyMap[a.id]}
+                  onClick={() => actWithDecision(a, "hold")}
+                  className="rounded border px-3 py-1.5 text-xs disabled:opacity-60"
+                >
+                  Hold
+                </button>
+                <button
+                  disabled={busyMap[a.id]}
+                  onClick={() => actWithDecision(a, "escalate")}
+                  className="rounded border px-3 py-1.5 text-xs disabled:opacity-60"
+                >
+                  Escalate
+                </button>
+                </div>
               </div>
-              {explainMap[a.id]?.open && (
-                <div className="mt-3 rounded-md border bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900/50">
-                  {explainMap[a.id]?.loading ? (
-                    <div className="text-zinc-500">Loading rationale…</div>
-                  ) : explainMap[a.id]?.error ? (
-                    <div className="text-red-600">{explainMap[a.id]?.error}</div>
-                  ) : explainMap[a.id]?.data ? (
-                    <div className="space-y-2">
-                      <div>
-                        <span className="font-medium">Rules:</span>
-                        <div className="mt-1 flex flex-wrap gap-2">
-                          {explainMap[a.id]!.data!.rules.map((r) => (
-                            <span key={r.id} className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] dark:bg-zinc-800">
-                              {r.name} ({r.contribution})
-                            </span>
-                          ))}
-                        </div>
+              <div className="mt-3 rounded-md border bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900/50">
+                {explainMap[a.id]?.loading ? (
+                  <div className="text-zinc-500">Loading rationale…</div>
+                ) : explainMap[a.id]?.error ? (
+                  <div className="text-red-600">{explainMap[a.id]?.error}</div>
+                ) : explainMap[a.id]?.data ? (
+                  <div className="space-y-2">
+                    <div>
+                      <span className="font-medium">Rules:</span>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {explainMap[a.id]!.data!.rules.map((r) => (
+                          <span key={r.id} className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] dark:bg-zinc-800">
+                            {r.name} ({r.contribution})
+                          </span>
+                        ))}
                       </div>
-                      <div>
-                        <span className="font-medium">Evidence:</span>
-                        <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          <div>
-                            <div className="text-[11px] text-zinc-500">Transactions</div>
-                            <ul className="mt-1 space-y-1">
-                              {explainMap[a.id]!.data!.evidence.transactions.map((t) => (
-                                <li key={t.id} className="flex justify-between">
-                                  <span className="font-mono">{t.id}</span>
-                                  <span>
-                                    {t.amount.toLocaleString()} • {t.cp}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div>
-                            <div className="text-[11px] text-zinc-500">Documents</div>
-                            <ul className="mt-1 space-y-1">
-                              {explainMap[a.id]!.data!.evidence.documents.map((d) => (
-                                <li key={d.id} className="flex items-center justify-between">
-                                  <span>{d.name}</span>
-                                  {d.anomaly ? (
-                                    <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] text-white">{d.anomaly}</span>
-                                  ) : (
-                                    <span className="text-[10px] text-zinc-500">ok</span>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
+                    </div>
+                    <div>
+                      <span className="font-medium">Evidence:</span>
+                      <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <div>
+                          <div className="text-[11px] text-zinc-500">Transactions</div>
+                          <ul className="mt-1 space-y-1">
+                            {explainMap[a.id]!.data!.evidence.transactions.map((t) => (
+                              <li key={t.id} className="flex justify-between">
+                                <span className="font-mono">{t.id}</span>
+                                <span>
+                                  {t.amount.toLocaleString()} • {t.cp}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-zinc-500">Documents</div>
+                          <ul className="mt-1 space-y-1">
+                            {explainMap[a.id]!.data!.evidence.documents.map((d) => (
+                              <li key={d.id} className="flex items-center justify-between">
+                                <span>{d.name}</span>
+                                {d.anomaly ? (
+                                  <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] text-white">{d.anomaly}</span>
+                                ) : (
+                                  <span className="text-[10px] text-zinc-500">ok</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       </div>
                     </div>
-                  ) : null}
-                </div>
-              )}
+                  </div>
+                ) : null}
+              </div>
             </div>
           ))}
         </div>
