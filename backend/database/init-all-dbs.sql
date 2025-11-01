@@ -12,7 +12,11 @@ CREATE DATABASE regulatory_db;
 -- Create database for Remediation Workflow Engine
 CREATE DATABASE aml_workflows;
 
+-- Create database for Alert Service
+CREATE DATABASE alert_service_db;
+
 -- Grant necessary permissions
 GRANT ALL PRIVILEGES ON DATABASE aml_monitoring TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE regulatory_db TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE aml_workflows TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE alert_service_db TO postgres;

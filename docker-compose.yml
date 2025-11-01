@@ -8,6 +8,7 @@ services:
   postgres:
     image: postgres:15
     container_name: aml_postgres
+    command: postgres -c max_connections=200
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -20,6 +21,7 @@ services:
       - ./backend/services/transaction-analysis-engine/database/init.sql:/docker-entrypoint-initdb.d/01_tae_init.sql
       - ./backend/services/transaction-analysis-engine/database/seed_rules.sql:/docker-entrypoint-initdb.d/02_tae_seed_rules.sql
       - ./backend/services/regulatory-ingestion-engine/database/init.sql:/docker-entrypoint-initdb.d/03_regulatory_init.sql
+      - ./backend/services/alert-service/database/init.sql:/docker-entrypoint-initdb.d/04_alert_service_init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
@@ -140,6 +142,52 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/services/remediation-workflow-engine/logs:/app/logs
+    networks:
+      - aml_network
+    restart: unless-stopped
+
+  # ============================================
+  # Alert Service - Port 8005
+  # ============================================
+
+  alert-service:
+    build:
+      context: ./backend/services/alert-service
+      dockerfile: Dockerfile
+    container_name: alert_service
+    environment:
+      # Database Configuration
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${ALERT_SERVICE_DB:-alert_service_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      # Application Configuration
+      ALERT_SERVICE_PORT: 8005
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+
+      # Performance Settings
+      DB_POOL_SIZE: 10
+      DB_MAX_OVERFLOW: 20
+
+      # CORS
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8005:8005"
+    volumes:
+      - ./backend/services/alert-service/app:/app/app
+      - ./backend/services/alert-service/logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8005/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - aml_network
     restart: unless-stopped
