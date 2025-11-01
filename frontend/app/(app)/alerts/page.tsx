@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isLoggedIn } from "@/lib/auth";
+import { useRole } from "@/lib/use-role";
+import { Permissions } from "@/lib/rbac";
 
 type AlertItem = {
   id: string;
@@ -38,6 +40,7 @@ type ExplainData = {
 
 export default function AlertsManagerPage() {
   const router = useRouter();
+  const { role: currentRole } = useRole();
   const [items, setItems] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -331,12 +334,12 @@ export default function AlertsManagerPage() {
         </div>
         <div>
           <label className="mb-1 block text-xs text-zinc-600 dark:text-zinc-400">
-            Entity
+            Client
           </label>
           <input
             value={entity}
             onChange={(e) => setEntity(e.target.value)}
-            placeholder="e.g. Entity-1"
+            placeholder="e.g. Client name"
             className="w-full rounded border bg-white p-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
           />
         </div>
@@ -470,21 +473,21 @@ export default function AlertsManagerPage() {
                   </Link>
                 )}
                 <button
-                  disabled={busyMap[a.id]}
+                  disabled={busyMap[a.id] || !Permissions.actOnAlerts(currentRole)}
                   onClick={() => actWithDecision(a, "approve")}
                   className="rounded border bg-white/60 px-3 py-1.5 text-xs shadow-sm disabled:opacity-60 dark:bg-zinc-900/40"
                 >
                   Approve
                 </button>
                 <button
-                  disabled={busyMap[a.id]}
+                  disabled={busyMap[a.id] || !Permissions.actOnAlerts(currentRole)}
                   onClick={() => actWithDecision(a, "hold")}
                   className="rounded border bg-white/60 px-3 py-1.5 text-xs shadow-sm disabled:opacity-60 dark:bg-zinc-900/40"
                 >
                   Hold
                 </button>
                 <button
-                  disabled={busyMap[a.id]}
+                  disabled={busyMap[a.id] || !Permissions.actOnAlerts(currentRole)}
                   onClick={() => actWithDecision(a, "escalate")}
                   className="rounded border bg-white/60 px-3 py-1.5 text-xs shadow-sm disabled:opacity-60 dark:bg-zinc-900/40"
                 >

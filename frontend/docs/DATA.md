@@ -61,4 +61,15 @@ Note: thresholds are demo defaults (e.g., amount > 100k, FX spread > 50 bps) and
 - `toClientTransaction(f: TransactionFull): Transaction` handles `null`→`undefined` and computes:
   - `display_direction`: `IN` if `amount >= 0`, else `OUT`.
   - `display_counterparty`: originator or beneficiary depending on direction; falls back to masked account.
+## KYC Profile (derived)
+- Fields are inferred from transactions on `/api/agent/background/{id}`:
+  - type: "Private Individual" vs "Corporate" (name heuristic)
+  - pep: true if any transaction flagged PEP
+  - adverseMedia / adverseInformation: true if sanctions HIT or POTENTIAL_MATCH present
+  - reputationalRisk: low/medium/high (based on sanctions/AML score)
+  - reasonPurpose: most frequent `swift_f70_purpose`/`purpose_code` or first `narrative`
+  - businessActivities: top channels
+  - sourceOfWealth: "Documented" if any `sow_documented`; else "Not documented"
+  - assetBreakdown: totals by currency
+  - sourceOfIncome: unknown in MVP
 

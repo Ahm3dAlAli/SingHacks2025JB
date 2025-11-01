@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { loadTransactions } from "@/lib/server/txData";
+import { mockAdverseMediaForName } from "@/lib/server/adverseMedia";
 
 function slugify(s: string): string {
   return s
@@ -22,7 +23,7 @@ export async function POST(_: Request, ctx: { params: Promise<{ entityId: string
   if (!name) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const related = rows.filter((tx) => tx.originator_name === name || tx.beneficiary_name === name);
-  if (related.length === 0) return NextResponse.json({ entityId, name, totals: { inflow: 0, outflow: 0, net: 0 }, counts: { txns: 0, counterparties: 0, currencies: 0, daysActive: 0 }, lastSeen: null, topCounterparties: [], currencies: [], channels: [], sanctions: { clear: 0, potential: 0, hit: 0, unknown: 0 }, flags: [], summary: "No transactions found for this entity." });
+  if (related.length === 0) return NextResponse.json({ entityId, name, totals: { inflow: 0, outflow: 0, net: 0 }, counts: { txns: 0, counterparties: 0, currencies: 0, daysActive: 0 }, lastSeen: null, topCounterparties: [], currencies: [], channels: [], sanctions: { clear: 0, potential: 0, hit: 0, unknown: 0 }, flags: [], summary: "No transactions found for this client." });
 
   let inflow = 0, outflow = 0;
   const cpty = new Map<string, { name: string; count: number; amount: number }>();
@@ -33,6 +34,9 @@ export async function POST(_: Request, ctx: { params: Promise<{ entityId: string
   let maxTs = 0;
   let pepCount = 0;
   let kycOverdue = 0;
+  const amlScores: number[] = [];
+  const purposes = new Map<string, number>();
+  const purposeTexts: string[] = [];
 
   for (const tx of related) {
     const amtAbs = Math.abs(tx.amount);
@@ -48,10 +52,15 @@ export async function POST(_: Request, ctx: { params: Promise<{ entityId: string
     const t = new Date(tx.booking_datetime).getTime();
     if (!isNaN(t)) { minTs = Math.min(minTs, t); maxTs = Math.max(maxTs, t); }
     if (tx.customer_is_pep || tx.pep_flag) pepCount++;
+    if (typeof tx.aml_risk_score === 'number') amlScores.push(tx.aml_risk_score);
     if (tx.kyc_due_date) {
       const due = new Date(tx.kyc_due_date + "T00:00:00+08:00").getTime();
       if (!isNaN(due) && due < Date.now()) kycOverdue++;
     }
+    const p = (tx.swift_f70_purpose || tx.purpose_code || '').toString().trim();
+    if (p) purposes.set(p, (purposes.get(p) || 0) + 1);
+    const n = (tx.narrative || '').toString().trim();
+    if (n) purposeTexts.push(n);
   }
 
   const net = inflow - outflow;
@@ -66,6 +75,43 @@ export async function POST(_: Request, ctx: { params: Promise<{ entityId: string
 
   const summary = `${name} has ${related.length} transactions across ${currencies.length} currencies and ${counterparties.length} counterparties. Inflow ${inflow.toLocaleString()} / Outflow ${outflow.toLocaleString()} (net ${net.toLocaleString()}).`;
 
+  // KYC profile (derived, MVP)
+  const corporateHints = ["PTE", "LTD", "INC", "LLC", "PLC", "CORP", "CO ", "CO.", "COMPANY"];
+  const isPrivateIndividual = !corporateHints.some((h) => (name || "").toUpperCase().includes(h));
+  const adv = mockAdverseMediaForName(name);
+  const adverseMedia = adv.count > 0;
+  const adverseInfo = adverseMedia; // MVP: same as media flag
+  const maxAml = amlScores.length ? Math.max(...amlScores) : 0;
+  // Derive a clearer reputational risk with multiple signals
+  const totalVolume = inflow + outflow;
+  const recent = maxTs ? (Date.now() - maxTs) <= 7 * 86400000 : false; // last 7 days
+  let reputationalRisk: "low" | "medium" | "high" = "low";
+  if (sanc.hit > 0 || pepCount > 0 || maxAml >= 90) {
+    reputationalRisk = "high";
+  } else if (sanc.potential > 0 || kycOverdue > 0 || maxAml >= 70 || totalVolume > 1_000_000 || (recent && related.length >= 20)) {
+    reputationalRisk = "medium";
+  }
+  const reputationalReasons: string[] = [];
+  if (sanc.hit > 0) reputationalReasons.push("Sanctions hit present");
+  if (sanc.potential > 0) reputationalReasons.push("Sanctions potential match");
+  if (pepCount > 0) reputationalReasons.push("PEP involvement in transactions");
+  if (kycOverdue > 0) reputationalReasons.push("KYC overdue");
+  if (adv.count > 0) reputationalReasons.push(`Adverse media mentions (${adv.count})`);
+  if (maxAml >= 90) reputationalReasons.push("High AML risk score (≥90)");
+  else if (maxAml >= 70) reputationalReasons.push("Elevated AML risk score (≥70)");
+  if (totalVolume > 1_000_000) reputationalReasons.push("High total volume (> 1,000,000)");
+  if (recent && related.length >= 20) reputationalReasons.push("High recent activity (20+ tx in last 7 days)");
+  const reasonPurpose = (() => {
+    if (purposes.size > 0) return Array.from(purposes.entries()).sort((a, b) => b[1] - a[1])[0][0];
+    if (purposeTexts.length > 0) return purposeTexts[0].slice(0, 120);
+    return null;
+  })();
+  const businessActivities = Array.from(ch.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([channel]) => channel);
+  const assetBreakdown = currencies.map((c) => ({ label: c.code, amount: c.amount }));
+  const sowDocumentedCount = related.reduce((acc, tx) => acc + (tx.sow_documented ? 1 : 0), 0);
+  const sourceOfWealth = sowDocumentedCount > 0 ? "Documented" : "Not documented";
+  const sourceOfIncome = null; // Unknown in MVP
+
   return NextResponse.json({
     entityId,
     name,
@@ -78,5 +124,23 @@ export async function POST(_: Request, ctx: { params: Promise<{ entityId: string
     channels,
     sanctions: sanc,
     flags,
+    adverseMedia: adv,
+    kyc: {
+      type: isPrivateIndividual ? "Private Individual" : "Corporate",
+      pep: pepCount > 0,
+      adverseInformation: adverseInfo,
+      adverseMedia,
+      reputationalRisk,
+      insiderFlag: false,
+      reasonPurpose,
+      education: null,
+      familyBackground: null,
+      currentOccupation: null,
+      businessActivities,
+      sourceOfWealth,
+      assetBreakdown,
+      sourceOfIncome,
+    },
+    reputationalReasons,
   });
 }

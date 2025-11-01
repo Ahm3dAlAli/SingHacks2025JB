@@ -17,7 +17,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Invalid credentials" }, { status: 401 });
   }
 
+  function determineRole(e: string): "relationship_manager" | "compliance_manager" | "legal" {
+    const lower = e.toLowerCase();
+    if (lower.startsWith("legal@") || lower.includes("+legal")) return "legal";
+    if (lower.startsWith("compliance@") || lower.includes("+compliance")) return "compliance_manager";
+    return "relationship_manager";
+  }
   const token = `dev-${Math.random().toString(36).slice(2)}`;
-  return NextResponse.json({ ok: true, token });
+  const role = determineRole(email);
+  return NextResponse.json({ ok: true, token, role });
 }
-

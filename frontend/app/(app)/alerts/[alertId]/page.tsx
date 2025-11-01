@@ -208,7 +208,7 @@ export default function AlertDetailPage() {
               Close
             </button>
             {detail.entityId && (
-              <Link href={`/entities/${detail.entityId}`} className="rounded-md border px-3 py-1.5 text-sm">
+              <Link href={`/kyc/${detail.entityId}`} className="rounded-md border px-3 py-1.5 text-sm">
                 Background Check
               </Link>
             )}

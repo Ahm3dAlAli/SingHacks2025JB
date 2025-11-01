@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Bell, CreditCard, Layers, Settings, ShieldCheck, Users, Newspaper } from "lucide-react";
+import { Activity, Bell, CreditCard, Layers, Settings, ShieldCheck, Users, Newspaper, FileText } from "lucide-react";
+import { useRole, saveRole } from "@/lib/use-role";
 import {
   Sidebar,
   SidebarContent,
@@ -39,6 +40,7 @@ function NavItem({ href, label, Icon, after }: { href: string; label: string; Ic
 }
 
 export default function SidebarAppNav() {
+  const { role } = useRole();
   function RegUpdatesBadge() {
     const [count, setCount] = useState<number>(0);
     useEffect(() => {
@@ -78,6 +80,7 @@ export default function SidebarAppNav() {
             <NavItem href="/transactions" label="Transactions" Icon={CreditCard} />
             <NavItem href="/regulatory-updates" label="Regulatory Updates" Icon={Newspaper} after={<RegUpdatesBadge />} />
             <NavItem href="/kyc" label="KYC" Icon={Users} />
+            <NavItem href="/documentation-review" label="Documentation" Icon={FileText} />
           </SidebarMenu>
         </SidebarGroup>
         <SidebarGroup>
@@ -90,7 +93,21 @@ export default function SidebarAppNav() {
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter>
-        <div className="px-1 text-xs text-muted-foreground">v0.1.0</div>
+        <div className="px-1 text-xs text-muted-foreground flex items-center justify-between gap-2 w-full">
+          <div className="flex items-center gap-2">
+            <span>Role</span>
+            <select
+              value={role}
+              onChange={(e) => saveRole(e.target.value as any)}
+              className="rounded border bg-white p-1 dark:border-zinc-700 dark:bg-zinc-950"
+            >
+              <option value="relationship_manager">Relationship Manager</option>
+              <option value="compliance_manager">Compliance Manager</option>
+              <option value="legal">Legal</option>
+            </select>
+          </div>
+          <span>v0.1.0</span>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

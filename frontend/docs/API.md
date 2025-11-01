@@ -86,21 +86,28 @@ curl -X POST 'http://localhost:3000/api/agent/tune' \
 - All data is ephemeral and per-request only (no DB).
 
 ## Entities & Background Reports
-- List people
+- List clients
 ```
 curl 'http://localhost:3000/api/entities'
 ```
-- Get person profile
+- Get client profile
 ```
 curl 'http://localhost:3000/api/entities/p-1'
 ```
-- Generate background report (unconventional, public-source style)
+- Generate background summary + KYC profile (derived)
 ```
 curl -X POST 'http://localhost:3000/api/agent/background/p-1'
 ```
+- List documents linked to a client
+```
+curl 'http://localhost:3000/api/docs/by-entity/p-1'
+```
 
 ## Transactions
-The Transactions UI is CSV-driven and parsed client-side. There are no backing API endpoints for ingest/evaluate/score in this demo.
+- Validate server-side and return full rows
+```
+curl 'http://localhost:3000/api/v1/transactions'
+```
 
 ## Regulatory Updates
 - List updates (optional filters `authority`, `q`)
@@ -273,4 +280,33 @@ curl 'http://localhost:3000/api/rules/versions/v-rule-1-0/diff'
 - Replay (re-evaluate window)
 ```
 curl -X POST 'http://localhost:3000/api/rules/replay' -H 'Content-Type: application/json' -d '{"hours":6}'
+```
+## Documentation Review
+- Upload (RM)
+```
+curl -X POST 'http://localhost:3000/api/docs/upload' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'title=Purchase Agreement' \
+  -F 'entityId=p-1' \
+  -F 'role=relationship_manager' \
+  -F 'file=@/path/to/file.pdf;type=application/pdf'
+```
+- Review queue
+```
+curl 'http://localhost:3000/api/docs/review?role=compliance_manager'
+```
+- Item detail
+```
+curl 'http://localhost:3000/api/docs/items/abc123'
+```
+- Take action (approve/reject/escalate)
+```
+curl -X POST 'http://localhost:3000/api/docs/items/abc123' \
+  -H 'Content-Type: application/json' \
+  -d '{"role":"compliance_manager","action":"escalate","note":"Reverse image hit","fraud":true}'
+```
+- List docs (markdown) and fetch content (for browsing `/docs`)
+```
+curl 'http://localhost:3000/api/docs/list'
+curl 'http://localhost:3000/api/docs/README'
 ```
