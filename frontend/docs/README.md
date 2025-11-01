@@ -48,3 +48,4 @@ See AGENTS.md for structure, style, and contribution standards:
 ## More Docs
 - API Cheatsheet: ./API.md
 - Architecture: ./ARCHITECTURE.md
+- User Guide: ../guides/suggestions-demo/README.md
