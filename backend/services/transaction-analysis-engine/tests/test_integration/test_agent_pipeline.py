@@ -7,9 +7,9 @@ from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
-from app.langgraph.agents.static_rules import static_rules_agent
-from app.langgraph.agents.behavioral import behavioral_agent
-from app.langgraph.agents.risk_scorer import risk_scorer_agent
+from app.workflows.agents.static_rules import static_rules_agent
+from app.workflows.agents.behavioral import behavioral_agent
+from app.workflows.agents.risk_scorer import risk_scorer_agent
 
 
 @pytest.mark.asyncio
@@ -22,17 +22,17 @@ class TestAgentPipeline:
         """Test clean transaction through full pipeline"""
         # Mock database calls
         with patch(
-            "app.langgraph.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
         ) as mock_rules, patch(
-            "app.langgraph.agents.static_rules.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_hist, patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_time, patch(
-            "app.langgraph.agents.behavioral.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
         ):
 
             mock_rules.return_value = sample_regulatory_rules
@@ -62,17 +62,17 @@ class TestAgentPipeline:
     ):
         """Test sanctions hit (CRITICAL) through pipeline"""
         with patch(
-            "app.langgraph.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
         ) as mock_rules, patch(
-            "app.langgraph.agents.static_rules.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_hist, patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_time, patch(
-            "app.langgraph.agents.behavioral.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
         ):
 
             mock_rules.return_value = sample_regulatory_rules
@@ -103,17 +103,17 @@ class TestAgentPipeline:
     ):
         """Test smurfing pattern detection (HIGH) through pipeline"""
         with patch(
-            "app.langgraph.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
         ) as mock_rules, patch(
-            "app.langgraph.agents.static_rules.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_hist, patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_time, patch(
-            "app.langgraph.agents.behavioral.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
         ):
 
             mock_rules.return_value = sample_regulatory_rules
@@ -143,17 +143,17 @@ class TestAgentPipeline:
     ):
         """Test expired KYC (HIGH) through pipeline"""
         with patch(
-            "app.langgraph.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
         ) as mock_rules, patch(
-            "app.langgraph.agents.static_rules.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_hist, patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_time, patch(
-            "app.langgraph.agents.behavioral.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
         ):
 
             mock_rules.return_value = sample_regulatory_rules
@@ -187,17 +187,17 @@ class TestAgentPipeline:
         pep_transaction.kyc_due_date = date.today() - timedelta(days=30)
 
         with patch(
-            "app.langgraph.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
         ) as mock_rules, patch(
-            "app.langgraph.agents.static_rules.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_hist, patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_time, patch(
-            "app.langgraph.agents.behavioral.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
         ):
 
             mock_rules.return_value = sample_regulatory_rules
@@ -228,17 +228,17 @@ class TestAgentPipeline:
     ):
         """Test state flows correctly through pipeline"""
         with patch(
-            "app.langgraph.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
         ) as mock_rules, patch(
-            "app.langgraph.agents.static_rules.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_hist, patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_time, patch(
-            "app.langgraph.agents.behavioral.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
         ):
 
             mock_rules.return_value = sample_regulatory_rules
@@ -286,17 +286,17 @@ class TestAgentPipeline:
     ):
         """Test all agents log their execution"""
         with patch(
-            "app.langgraph.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
         ) as mock_rules, patch(
-            "app.langgraph.agents.static_rules.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.save_agent_log", new_callable=AsyncMock
         ) as mock_log1, patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_hist, patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_time, patch(
-            "app.langgraph.agents.behavioral.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.save_agent_log", new_callable=AsyncMock
         ) as mock_log2, patch(
-            "app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
         ) as mock_log3:
 
             mock_rules.return_value = sample_regulatory_rules
@@ -327,17 +327,17 @@ class TestAgentPipeline:
         import time
 
         with patch(
-            "app.langgraph.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
         ) as mock_rules, patch(
-            "app.langgraph.agents.static_rules.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_hist, patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_time, patch(
-            "app.langgraph.agents.behavioral.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.save_agent_log", new_callable=AsyncMock
         ), patch(
-            "app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
         ):
 
             mock_rules.return_value = sample_regulatory_rules

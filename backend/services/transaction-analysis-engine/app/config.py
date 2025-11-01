@@ -19,7 +19,15 @@ class Settings(BaseSettings):
 
     # Groq API Configuration
     GROQ_API_KEY: str
-    GROQ_MODEL: str = "llama-3.1-70b-versatile"
+    GROQ_MODEL: str = "llama-3.1-70b-versatile"  # Note: This model is deprecated, update to llama-3.3-70b-versatile
+    GROQ_DEFAULT_TIMEOUT: int = 30
+    GROQ_RETRY_DELAYS: str = "1,2,4"  # Comma-separated delays in seconds
+    GROQ_RULE_PARSER_TEMPERATURE: float = 0.1
+    GROQ_RULE_PARSER_MAX_TOKENS: int = 800
+    GROQ_RULE_PARSER_TIMEOUT: int = 25
+    GROQ_EXPLAINER_TEMPERATURE: float = 0.3
+    GROQ_EXPLAINER_MAX_TOKENS: int = 1200
+    GROQ_EXPLAINER_TIMEOUT: int = 25
 
     # Application Configuration
     TAE_PORT: int = 8002
@@ -55,6 +63,11 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         """Check if running in development environment"""
         return self.ENVIRONMENT.lower() == "development"
+
+    @property
+    def groq_retry_delays_list(self) -> list[int]:
+        """Parse GROQ_RETRY_DELAYS string into list of integers"""
+        return [int(x.strip()) for x in self.GROQ_RETRY_DELAYS.split(",")]
 
 
 @lru_cache()

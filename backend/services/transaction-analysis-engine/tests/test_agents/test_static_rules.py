@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
-from app.langgraph.agents.static_rules import (
+from app.workflows.agents.static_rules import (
     check_cash_limits,
     check_kyc_expiry,
     check_pep_status,
@@ -297,9 +297,9 @@ class TestStaticRulesAgent:
         """Test clean transaction returns no violations"""
         # Mock database queries
         with patch(
-            "app.langgraph.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
         ) as mock_get_rules, patch(
-            "app.langgraph.agents.static_rules.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.save_agent_log", new_callable=AsyncMock
         ) as mock_save_log:
 
             mock_get_rules.return_value = []
@@ -324,9 +324,9 @@ class TestStaticRulesAgent:
         pep_transaction.kyc_due_date = date.today() - timedelta(days=30)  # Expired KYC
 
         with patch(
-            "app.langgraph.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
         ) as mock_get_rules, patch(
-            "app.langgraph.agents.static_rules.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.save_agent_log", new_callable=AsyncMock
         ):
 
             mock_get_rules.return_value = sample_regulatory_rules
@@ -344,9 +344,9 @@ class TestStaticRulesAgent:
     async def test_agent_handles_exception(self, sample_transaction, mock_db_session):
         """Test agent handles exceptions gracefully"""
         with patch(
-            "app.langgraph.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
         ) as mock_get_rules, patch(
-            "app.langgraph.agents.static_rules.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.save_agent_log", new_callable=AsyncMock
         ) as mock_save_log:
 
             # Simulate error
@@ -365,9 +365,9 @@ class TestStaticRulesAgent:
     async def test_agent_logs_execution_time(self, sample_transaction, mock_db_session):
         """Test agent logs execution time"""
         with patch(
-            "app.langgraph.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.get_regulatory_rules", new_callable=AsyncMock
         ) as mock_get_rules, patch(
-            "app.langgraph.agents.static_rules.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.static_rules.save_agent_log", new_callable=AsyncMock
         ) as mock_save_log:
 
             mock_get_rules.return_value = []

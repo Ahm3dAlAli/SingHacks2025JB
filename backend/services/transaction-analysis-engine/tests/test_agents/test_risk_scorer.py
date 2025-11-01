@@ -5,7 +5,7 @@ Unit tests for Agent 4: Risk Scorer
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from app.langgraph.agents.risk_scorer import (
+from app.workflows.agents.risk_scorer import (
     aggregate_static_scores,
     aggregate_behavioral_scores,
     apply_jurisdiction_weight,
@@ -280,7 +280,7 @@ class TestRiskScorerAgent:
     async def test_clean_transaction_scoring(self, sample_transaction, mock_db_session):
         """Test scoring clean transaction (no violations or flags)"""
         with patch(
-            "app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
         ) as mock_save_log:
             score, level, explanation = await risk_scorer_agent(
                 sample_transaction, violations=[], flags=[], session=mock_db_session
@@ -300,7 +300,7 @@ class TestRiskScorerAgent:
         self, sample_transaction, mock_db_session, sample_rule_violations, sample_behavioral_flags
     ):
         """Test scoring high-risk transaction"""
-        with patch("app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock):
+        with patch("app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock):
             score, level, explanation = await risk_scorer_agent(
                 sample_transaction,
                 violations=sample_rule_violations,
@@ -321,7 +321,7 @@ class TestRiskScorerAgent:
         # Take only 1 violation
         single_violation = [sample_rule_violations[0]]
 
-        with patch("app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock):
+        with patch("app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock):
             score, level, explanation = await risk_scorer_agent(
                 sample_transaction, violations=single_violation, flags=[], session=mock_db_session
             )
@@ -337,7 +337,7 @@ class TestRiskScorerAgent:
         # Use only one violation to avoid hitting the 100 cap
         single_violation = [sample_rule_violations[0]]  # Score: 65
 
-        with patch("app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock):
+        with patch("app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock):
             # HK (1.2x): (65 + 0) / 2 = 32.5 * 1.2 = 39
             sample_transaction.booking_jurisdiction = "HK"
             score_hk, _, _ = await risk_scorer_agent(
@@ -362,7 +362,7 @@ class TestRiskScorerAgent:
     async def test_agent_handles_exception(self, sample_transaction, mock_db_session):
         """Test risk scorer handles exceptions gracefully"""
         with patch(
-            "app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
         ) as mock_save_log:
             # Cause error by making violations None
             mock_save_log.side_effect = [None, Exception("Database error")]
@@ -379,7 +379,7 @@ class TestRiskScorerAgent:
     async def test_agent_logs_execution_time(self, sample_transaction, mock_db_session):
         """Test risk scorer logs execution time"""
         with patch(
-            "app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
         ) as mock_save_log:
             await risk_scorer_agent(
                 sample_transaction, violations=[], flags=[], session=mock_db_session
@@ -394,7 +394,7 @@ class TestRiskScorerAgent:
     ):
         """Test risk scorer logs all relevant details"""
         with patch(
-            "app.langgraph.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.risk_scorer.save_agent_log", new_callable=AsyncMock
         ) as mock_save_log:
             await risk_scorer_agent(
                 sample_transaction,

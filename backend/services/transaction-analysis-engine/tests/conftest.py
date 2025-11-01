@@ -431,3 +431,50 @@ def custom_test_config():
         severity=SeverityConfig(critical=90, high=60, medium=35, low=15),
         jurisdiction=JurisdictionConfig(hk_weight=1.5, sg_weight=1.0, ch_weight=1.2),
     )
+
+
+# Groq API mocking fixtures (TASK-005)
+
+
+@pytest.fixture
+def mock_groq_response_rule_parser():
+    """Mock Groq API response for rule parser"""
+    return {
+        "rule_id": "TEST-RULE-001",
+        "conditions": ["cash transaction", "exceeds threshold"],
+        "thresholds": {"amount": 8000, "currency": "HKD"},
+        "severity_score": 85,
+        "applies_to": ["CASH", "FX"],
+        "required_actions": ["CTR", "Enhanced monitoring"],
+    }
+
+
+@pytest.fixture
+def mock_groq_response_explainer():
+    """Mock Groq API response for explainer"""
+    return {
+        "explanation": "This transaction triggered a CRITICAL alert due to multiple high-severity violations. The customer attempted a HKD 150,000 cash transaction, exceeding Hong Kong's HKD 8,000 threshold by 1,775%. Additionally, KYC documentation expired 45 days ago, and behavioral analysis detected 12 transactions in 24 hours—4x normal activity.",
+        "regulatory_basis": [
+            "HKMA-CASH-001: Cash Transaction Limit",
+            "HKMA-KYC-002: KYC Renewal Requirements",
+        ],
+        "evidence": [
+            "Cash amount exceeds threshold by 1,775%",
+            "KYC expired 45 days ago",
+            "Transaction velocity 4x normal",
+        ],
+        "recommended_action": "ENHANCED_DUE_DILIGENCE",
+        "confidence": "HIGH",
+    }
+
+
+@pytest.fixture
+def mock_groq_client(mock_groq_response_rule_parser, mock_groq_response_explainer):
+    """Mock GroqClient for testing"""
+    from unittest.mock import AsyncMock, MagicMock
+
+    client = MagicMock()
+    client.complete = AsyncMock()
+    # Default to rule parser response
+    client.complete.return_value = mock_groq_response_rule_parser
+    return client

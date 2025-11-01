@@ -2,7 +2,7 @@
 LangGraph workflow components for Transaction Analysis Engine.
 """
 
-from app.langgraph.state import (
+from app.workflows.state import (
     TAEState,
     create_initial_state,
     update_state_with_static_violations,

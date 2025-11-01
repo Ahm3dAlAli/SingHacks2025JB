@@ -6,7 +6,7 @@ import pytest
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
-from app.langgraph.agents.behavioral import (
+from app.workflows.agents.behavioral import (
     analyze_velocity,
     detect_smurfing,
     detect_clustering,
@@ -32,7 +32,7 @@ class TestVelocityAnalysis:
     ):
         """Test high velocity anomaly detection (12 txns in 24h vs avg 3/day)"""
         with patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_get:
             mock_get.return_value = high_velocity_transactions
 
@@ -52,7 +52,7 @@ class TestVelocityAnalysis:
     ):
         """Test normal velocity doesn't flag"""
         with patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_get:
             mock_get.return_value = historical_transactions
 
@@ -65,7 +65,7 @@ class TestVelocityAnalysis:
     ):
         """Test insufficient history returns no flags"""
         with patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_get:
             # Return only 3 transactions (below min_history_for_analysis default of 5)
             mock_get.return_value = historical_transactions[:3]
@@ -86,7 +86,7 @@ class TestVelocityAnalysis:
         set_agent_config(custom_config)
 
         with patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_get:
             mock_get.return_value = high_velocity_transactions
 
@@ -98,7 +98,7 @@ class TestVelocityAnalysis:
     async def test_velocity_handles_exception(self, sample_transaction, mock_db_session):
         """Test velocity analysis handles exceptions gracefully"""
         with patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_get:
             mock_get.side_effect = Exception("Database error")
 
@@ -116,7 +116,7 @@ class TestSmurfingDetection:
     ):
         """Test smurfing pattern: 5 × HKD 7,000 on same day"""
         with patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_get:
             mock_get.return_value = smurfing_transactions
 
@@ -134,7 +134,7 @@ class TestSmurfingDetection:
     ):
         """Test insufficient transactions (< 3) doesn't flag"""
         with patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_get:
             # Only 2 transactions
             mock_get.return_value = smurfing_transactions[:2]
@@ -152,7 +152,7 @@ class TestSmurfingDetection:
             txn.amount = Decimal("9000.00")  # Above HKD 8,000
 
         with patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_get:
             mock_get.return_value = smurfing_transactions
 
@@ -169,7 +169,7 @@ class TestSmurfingDetection:
             txn.amount = Decimal(str(1000 + i * 2000))  # 1K, 3K, 5K, 7K, 9K
 
         with patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_get:
             mock_get.return_value = smurfing_transactions
 
@@ -193,7 +193,7 @@ class TestClusteringDetection:
             txn.currency = "HKD"
 
         with patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_get:
             mock_get.return_value = clustering_txns
 
@@ -209,7 +209,7 @@ class TestClusteringDetection:
     ):
         """Test insufficient transactions for clustering"""
         with patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_get:
             mock_get.return_value = historical_transactions[:3]  # < 5 transactions
 
@@ -223,7 +223,7 @@ class TestClusteringDetection:
         """Test high variation doesn't flag clustering"""
         # Normal transactions have high variation
         with patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_get:
             mock_get.return_value = historical_transactions
 
@@ -354,11 +354,11 @@ class TestBehavioralAgent:
     async def test_clean_transaction(self, sample_transaction, mock_db_session):
         """Test clean transaction returns no flags"""
         with patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_get_hist, patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_get_time, patch(
-            "app.langgraph.agents.behavioral.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.save_agent_log", new_callable=AsyncMock
         ) as mock_save_log:
 
             # Return insufficient history (< 5 transactions)
@@ -385,11 +385,11 @@ class TestBehavioralAgent:
         sample_transaction.suitability_assessed = False  # Profile mismatch
 
         with patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_get_hist, patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_get_time, patch(
-            "app.langgraph.agents.behavioral.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.save_agent_log", new_callable=AsyncMock
         ):
 
             mock_get_hist.return_value = high_velocity_transactions
@@ -408,9 +408,9 @@ class TestBehavioralAgent:
     async def test_agent_handles_exception(self, sample_transaction, mock_db_session):
         """Test behavioral agent handles exceptions gracefully"""
         with patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_get, patch(
-            "app.langgraph.agents.behavioral.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.save_agent_log", new_callable=AsyncMock
         ) as mock_save_log:
 
             mock_get.side_effect = Exception("Database error")
@@ -429,11 +429,11 @@ class TestBehavioralAgent:
     async def test_agent_logs_execution_time(self, sample_transaction, mock_db_session):
         """Test behavioral agent logs execution time"""
         with patch(
-            "app.langgraph.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_customer_transactions", new_callable=AsyncMock
         ) as mock_get, patch(
-            "app.langgraph.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.get_transactions_by_timeframe", new_callable=AsyncMock
         ) as mock_get_time, patch(
-            "app.langgraph.agents.behavioral.save_agent_log", new_callable=AsyncMock
+            "app.workflows.agents.behavioral.save_agent_log", new_callable=AsyncMock
         ) as mock_save_log:
 
             mock_get.return_value = []
