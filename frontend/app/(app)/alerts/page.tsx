@@ -14,7 +14,7 @@ type AlertItem = {
 };
 
 type RuleHit = { id: string; name: string; score: number };
-type RuleInfo = { ruleHits: RuleHit[]; risk: number };
+type RuleInfo = { ruleHits: RuleHit[]; risk: number; entityId?: string };
 type ExplainData = {
   summary: string;
   rules: { id: string; name: string; contribution: number }[];
@@ -34,6 +34,7 @@ export default function AlertsManagerPage() {
   const [entity, setEntity] = useState<string>("");
   const [ruleInfoMap, setRuleInfoMap] = useState<Record<string, RuleInfo>>({});
   const [aiMap, setAiMap] = useState<Record<string, { loading: boolean; summary?: string; recommendation?: string; error?: string }>>({});
+  const [personMap, setPersonMap] = useState<Record<string, { name: string; employer?: string }>>({});
   const [explainMap, setExplainMap] = useState<Record<string, { loading: boolean; open: boolean; error?: string; data?: ExplainData }>>({});
   const [commentMap, setCommentMap] = useState<Record<string, string>>({});
   const [busyMap, setBusyMap] = useState<Record<string, boolean>>({});
@@ -69,14 +70,31 @@ export default function AlertsManagerPage() {
             try {
               const dRes = await fetch(`/api/alerts/${a.id}`);
               if (!dRes.ok) return [a.id, { ruleHits: [], risk: 0 }] as const;
-              const detail = (await dRes.json()) as { ruleHits?: RuleHit[]; risk?: number };
-              return [a.id, { ruleHits: detail.ruleHits ?? [], risk: detail.risk ?? 0 }] as const;
+              const detail = (await dRes.json()) as { ruleHits?: RuleHit[]; risk?: number; entityId?: string };
+              return [a.id, { ruleHits: detail.ruleHits ?? [], risk: detail.risk ?? 0, entityId: detail.entityId }] as const;
             } catch {
               return [a.id, { ruleHits: [], risk: 0 }] as const;
             }
           })
         );
-        setRuleInfoMap(Object.fromEntries(entries));
+        const ruleMap = Object.fromEntries(entries) as Record<string, RuleInfo>;
+        setRuleInfoMap(ruleMap);
+
+        // fetch person names for display (align entity label to person)
+        const personEntries = await Promise.all(
+          Object.entries(ruleMap).map(async ([alertId, info]) => {
+            if (!info.entityId) return [alertId, undefined] as const;
+            try {
+              const pRes = await fetch(`/api/entities/${info.entityId}`);
+              if (!pRes.ok) return [alertId, undefined] as const;
+              const p = (await pRes.json()) as { name: string; employer?: string };
+              return [alertId, { name: p.name, employer: p.employer }] as const;
+            } catch {
+              return [alertId, undefined] as const;
+            }
+          })
+        );
+        setPersonMap(Object.fromEntries(personEntries.filter(([, v]) => !!v)) as Record<string, { name: string; employer?: string }>);
 
         // fetch AI summaries automatically
         const aiEntries = await Promise.all(
@@ -288,7 +306,7 @@ export default function AlertsManagerPage() {
                     </span>
                   </div>
                   <div className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
-                    {a.entity}
+                    {personMap[a.id]?.name ?? a.entity}
                   </div>
                   <div className="text-xs text-zinc-500">
                     {new Date(a.createdAt).toLocaleString()}
@@ -343,6 +361,14 @@ export default function AlertsManagerPage() {
                 >
                   View
                 </Link>
+                {ruleInfoMap[a.id]?.entityId && (
+                  <Link
+                    href={`/entities/${ruleInfoMap[a.id]!.entityId}`}
+                    className="rounded border px-3 py-1.5 text-xs"
+                  >
+                    Background
+                  </Link>
+                )}
                 <button
                   disabled={busyMap[a.id]}
                   onClick={() => actWithDecision(a, "approve")}

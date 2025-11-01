@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Bell, FileText, Layers, Settings, ShieldCheck, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Activity, Bell, CreditCard, Layers, Settings, ShieldCheck, Users, Newspaper } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -15,7 +16,9 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 
-function NavItem({ href, label, Icon }: { href: string; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> }) {
+
+
+function NavItem({ href, label, Icon, after }: { href: string; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; after?: React.ReactNode }) {
   const pathname = usePathname();
   const active = pathname === href || pathname?.startsWith(href + "/");
   return (
@@ -26,13 +29,35 @@ function NavItem({ href, label, Icon }: { href: string; label: string; Icon: Rea
         className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-700 outline-hidden hover:bg-zinc-100 data-[active=true]:bg-primary/10 data-[active=true]:text-primary dark:text-zinc-300 dark:hover:bg-zinc-800"
       >
         <Icon className="h-4 w-4" />
-        <span>{label}</span>
+        <span className="flex items-center gap-2">
+          {label}
+          {after}
+        </span>
       </Link>
     </SidebarMenuItem>
   );
 }
 
 export default function SidebarAppNav() {
+  function RegUpdatesBadge() {
+    const [count, setCount] = useState<number>(0);
+    useEffect(() => {
+      let mounted = true;
+      async function load() {
+        try {
+          const res = await fetch("/api/rules/suggestions?status=needs_review");
+          if (!res.ok) return;
+          const data = await res.json();
+          if (mounted) setCount(Array.isArray(data.items) ? data.items.length : 0);
+        } catch {}
+      }
+      load();
+      const t = setInterval(load, 15000);
+      return () => { mounted = false; clearInterval(t); };
+    }, []);
+    if (!count) return null;
+    return <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] text-white">{count}</span>;
+  }
   return (
     <Sidebar>
       <SidebarHeader>
@@ -49,9 +74,10 @@ export default function SidebarAppNav() {
           <SidebarGroupLabel>Operations</SidebarGroupLabel>
           <SidebarMenu>
             <NavItem href="/alerts" label="Alerts" Icon={Bell} />
-            <NavItem href="#" label="Rules" Icon={ShieldCheck} />
-            <NavItem href="#" label="Documents" Icon={FileText} />
-            <NavItem href="#" label="Entities" Icon={Users} />
+            <NavItem href="/rules" label="Rules" Icon={ShieldCheck} />
+            <NavItem href="/transactions" label="Transactions" Icon={CreditCard} />
+            <NavItem href="/regulatory-updates" label="Regulatory Updates" Icon={Newspaper} after={<RegUpdatesBadge />} />
+            <NavItem href="/entities" label="Entities" Icon={Users} />
           </SidebarMenu>
         </SidebarGroup>
         <SidebarGroup>

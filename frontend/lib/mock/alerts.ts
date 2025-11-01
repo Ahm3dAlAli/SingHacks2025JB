@@ -10,6 +10,7 @@ export type AlertListItem = {
 };
 
 export type AlertDetail = AlertListItem & {
+  entityId: string;
   risk: number; // 0-100
   ruleHits: { id: string; name: string; score: number }[];
   transactions: { id: string; amount: number; currency: string; counterparty: string; ts: string }[];
@@ -34,6 +35,7 @@ function seededNumber(str: string) {
 
 export function generateAlertDetail(alertId: string): AlertDetail {
   const seed = seededNumber(alertId);
+  const entityId = `p-${(seed % 8) + 1}`;
   const entity = `Entity-${(seed % 7) + 1}`;
   const severity = severities[seed % severities.length];
   const status = statuses[seed % statuses.length];
@@ -42,6 +44,7 @@ export function generateAlertDetail(alertId: string): AlertDetail {
   return {
     id: alertId,
     entity,
+    entityId,
     severity,
     status,
     createdAt,
@@ -81,4 +84,3 @@ export function listAlerts(query?: { severity?: Severity; status?: Status; entit
   if (query?.entity) items = items.filter((a) => a.entity === query.entity);
   return items;
 }
-

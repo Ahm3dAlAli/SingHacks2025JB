@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { isLoggedIn } from "@/lib/auth";
+import Link from "next/link";
 import { BadgeCheck, Bell, FileText, History, ShieldAlert } from "lucide-react";
 
 type AlertDetail = {
@@ -10,6 +11,7 @@ type AlertDetail = {
   risk: number; // 0-100
   severity: "low" | "medium" | "high" | "critical";
   status: "new" | "acknowledged" | "in_progress" | "closed";
+  entityId?: string;
   ruleHits: { id: string; name: string; score: number }[];
   transactions: { id: string; amount: number; currency: string; counterparty: string; ts: string }[];
   documents: { id: string; name: string; type: string; anomaly?: string }[];
@@ -27,6 +29,7 @@ export default function AlertDetailPage() {
   const router = useRouter();
   const [detail, setDetail] = useState<AlertDetail | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [person, setPerson] = useState<{ name: string; employer?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
@@ -67,6 +70,18 @@ export default function AlertDetailPage() {
       const t = (await tRes.json()) as TimelineEvent[];
       setDetail(d);
       setTimeline(t);
+      // Fetch person details for nicer display
+      if (d.entityId) {
+        try {
+          const pRes = await fetch(`/api/entities/${d.entityId}`);
+          if (pRes.ok) {
+            const p = (await pRes.json()) as { name: string; employer?: string };
+            setPerson({ name: p.name, employer: (p as any).employer });
+          }
+        } catch {}
+      } else {
+        setPerson(null);
+      }
     } catch (e: any) {
       setError(e.message || "Error loading alert");
     } finally {
@@ -164,7 +179,13 @@ export default function AlertDetailPage() {
               <span className="rounded bg-zinc-100 px-2 py-1 text-xs dark:bg-zinc-800">Risk: {detail.risk}</span>
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
+          {person ? (
+            <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              Person: <span className="font-medium text-zinc-900 dark:text-zinc-50">{person.name}</span>
+              {person.employer ? <> • {person.employer}</> : null}
+            </div>
+          ) : null}
+          <div className="mt-4 flex flex-wrap gap-2">
             <button
               onClick={ack}
               disabled={updating || detail.status !== "new"}
@@ -186,6 +207,11 @@ export default function AlertDetailPage() {
             >
               Close
             </button>
+            {detail.entityId && (
+              <Link href={`/entities/${detail.entityId}`} className="rounded-md border px-3 py-1.5 text-sm">
+                Background Check
+              </Link>
+            )}
           </div>
         </header>
 
