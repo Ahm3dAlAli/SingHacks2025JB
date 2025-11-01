@@ -6,24 +6,20 @@ services:
     environment:
       - DATABASE_URL=sqlite:///./data/documents.db
       - GROQ_API_KEY=${GROQ_API_KEY}
-      - OCR_ENGINE=groq_vision
       - LOG_LEVEL=INFO
     volumes:
       - ./data:/app/data
-      - ./uploads:/app/data/uploads
     depends_on:
       - redis
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
   redis:
     image: redis:alpine
-    ports:
-      - "6379:6379"
     restart: unless-stopped
 
   celery-worker:
@@ -47,4 +43,4 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
     volumes:
       - ./data:/app/data
-    restart: unless-stolessed
+    restart: unless-stopped
