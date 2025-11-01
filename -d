@@ -1,0 +1,1 @@
+{"detail":[{"type":"missing","loc":["body"],"msg":"Field required","input":null,"url":"https://errors.pydantic.dev/2.12/v/missing"}]}
