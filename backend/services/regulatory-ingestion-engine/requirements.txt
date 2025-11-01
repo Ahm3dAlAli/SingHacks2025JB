@@ -1,0 +1,32 @@
+# Core
+fastapi==0.104.1
+uvicorn==0.24.0
+python-dotenv==1.0.0
+pydantic==2.4.2
+pydantic-settings==2.1.0
+python-multipart==0.0.6
+
+# Database
+sqlalchemy==2.0.23
+alembic==1.12.1
+psycopg2-binary==2.9.9
+
+# Document Processing
+PyMuPDF==1.22.5
+python-docx==0.8.11
+beautifulsoup4==4.12.2
+lxml==4.9.3
+
+# NLP/ML
+spacy==3.7.2
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.1
+
+# Utilities
+loguru==0.7.2
+python-dateutil==2.8.2
+python-slugify==8.0.1
+groq>=0.33.0  # Using the latest stable version
