@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     WORKERS: int = 4
     ENVIRONMENT: str = "development"
 
+    # Regulatory Service Integration
+    REGULATORY_SERVICE_URL: str = "http://regulatory-service:8003"
+
     # Performance Settings (Optional)
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
