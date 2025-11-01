@@ -34,6 +34,30 @@ def mock_db_session():
 
 
 @pytest.fixture
+def async_session():
+    """Mock async database session for async tests"""
+    from unittest.mock import AsyncMock, MagicMock
+    session = MagicMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    session.close = AsyncMock()
+    session.execute = AsyncMock()
+    session.scalar = AsyncMock()
+    session.add = MagicMock()  # add is synchronous
+    session.flush = AsyncMock()
+    session.refresh = AsyncMock()
+    return session
+
+
+@pytest.fixture
+def async_client():
+    """Async HTTP client for testing API endpoints"""
+    from httpx import AsyncClient
+    from app.main import app
+    return AsyncClient(app=app, base_url="http://test")
+
+
+@pytest.fixture
 def sample_transaction():
     """Create a sample clean transaction"""
     return Transaction(

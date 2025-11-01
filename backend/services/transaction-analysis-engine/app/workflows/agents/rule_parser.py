@@ -124,9 +124,10 @@ Be precise with threshold values extracted from the text. If no threshold is men
         # Calculate execution time
         execution_time_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
 
-        # Log to database
+        # Log to database (use a generated UUID since this is not transaction-specific)
+        from uuid import uuid4
         log_entry = AgentExecutionLog(
-            transaction_id=rule.rule_id,  # Using rule_id as pseudo-transaction_id for logging
+            transaction_id=uuid4(),  # Generate UUID for rule parsing logs
             agent_name="rule_parser",
             input_data={
                 "rule_id": rule.rule_id,
@@ -158,8 +159,9 @@ Be precise with threshold values extracted from the text. If no threshold is men
         execution_time_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
 
         # Log error to database
+        from uuid import uuid4
         log_entry = AgentExecutionLog(
-            transaction_id=rule.rule_id,
+            transaction_id=uuid4(),  # Generate UUID for rule parsing error logs
             agent_name="rule_parser",
             input_data={"rule_id": rule.rule_id, "rule_text": rule.rule_text[:200]},
             output_data=None,
@@ -188,8 +190,9 @@ Be precise with threshold values extracted from the text. If no threshold is men
         execution_time_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
 
         # Log error
+        from uuid import uuid4
         log_entry = AgentExecutionLog(
-            transaction_id=rule.rule_id,
+            transaction_id=uuid4(),  # Generate UUID for rule parsing exception logs
             agent_name="rule_parser",
             input_data={"rule_id": rule.rule_id},
             output_data=None,

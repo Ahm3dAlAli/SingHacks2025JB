@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.models import Transaction, RiskAssessment, RegulatoryRule, AgentExecutionLog
+from app.database.models import Transaction, RiskAssessment, RegulatoryRule, AgentExecutionLog, BatchMetadata
 from app.utils.logger import logger
 
 
@@ -310,3 +310,189 @@ async def get_transactions_by_timeframe(
     )
 
     return list(transactions)
+
+
+# ============================================================================
+# BATCH PROCESSING QUERIES
+# ============================================================================
+
+
+async def save_batch_metadata(session: AsyncSession, batch: BatchMetadata) -> BatchMetadata:
+    """
+    Save batch metadata to the database.
+
+    Args:
+        session: Database session
+        batch: BatchMetadata object to save
+
+    Returns:
+        Saved BatchMetadata object
+
+    Example:
+        >>> batch = BatchMetadata(
+        ...     filename="transactions.csv",
+        ...     total_transactions=1000,
+        ...     status="PENDING"
+        ... )
+        >>> saved = await save_batch_metadata(session, batch)
+        >>> saved.batch_id
+        UUID('550e8400-e29b-41d4-a716-446655440000')
+    """
+    session.add(batch)
+    await session.flush()
+
+    logger.info(
+        f"Batch metadata saved: {batch.batch_id}",
+        extra={
+            "extra_data": {
+                "batch_id": str(batch.batch_id),
+                "filename": batch.filename,
+                "total_transactions": batch.total_transactions,
+                "status": batch.status,
+            }
+        },
+    )
+
+    return batch
+
+
+async def get_batch_metadata(session: AsyncSession, batch_id: UUID) -> Optional[BatchMetadata]:
+    """
+    Get batch metadata by batch_id.
+
+    Args:
+        session: Database session
+        batch_id: UUID of the batch
+
+    Returns:
+        BatchMetadata object or None if not found
+
+    Example:
+        >>> batch = await get_batch_metadata(session, batch_id)
+        >>> batch.status
+        'PROCESSING'
+    """
+    query = select(BatchMetadata).where(BatchMetadata.batch_id == batch_id)
+    result = await session.execute(query)
+    batch = result.scalar_one_or_none()
+
+    if batch:
+        logger.info(
+            f"Batch metadata retrieved: {batch_id}",
+            extra={
+                "extra_data": {
+                    "batch_id": str(batch_id),
+                    "status": batch.status,
+                    "processed_count": batch.processed_count,
+                    "total_transactions": batch.total_transactions,
+                }
+            },
+        )
+    else:
+        logger.warning(f"Batch metadata not found: {batch_id}")
+
+    return batch
+
+
+async def update_batch_status(
+    session: AsyncSession,
+    batch_id: UUID,
+    status: str,
+    error_message: Optional[str] = None,
+    completed_at: Optional[datetime] = None,
+) -> Optional[BatchMetadata]:
+    """
+    Update batch status.
+
+    Args:
+        session: Database session
+        batch_id: UUID of the batch
+        status: New status (PENDING/PROCESSING/COMPLETED/FAILED)
+        error_message: Optional error message if failed
+        completed_at: Optional completion timestamp
+
+    Returns:
+        Updated BatchMetadata object or None if not found
+
+    Example:
+        >>> batch = await update_batch_status(
+        ...     session, batch_id, "COMPLETED", completed_at=datetime.utcnow()
+        ... )
+        >>> batch.status
+        'COMPLETED'
+    """
+    batch = await get_batch_metadata(session, batch_id)
+    if not batch:
+        return None
+
+    batch.status = status
+    if error_message:
+        batch.error_message = error_message
+    if completed_at:
+        batch.completed_at = completed_at
+
+    await session.flush()
+
+    logger.info(
+        f"Batch status updated: {batch_id} -> {status}",
+        extra={
+            "extra_data": {
+                "batch_id": str(batch_id),
+                "status": status,
+                "error_message": error_message,
+            }
+        },
+    )
+
+    return batch
+
+
+async def update_batch_progress(
+    session: AsyncSession,
+    batch_id: UUID,
+    processed_count: Optional[int] = None,
+    failed_count: Optional[int] = None,
+) -> Optional[BatchMetadata]:
+    """
+    Update batch progress counters.
+
+    Args:
+        session: Database session
+        batch_id: UUID of the batch
+        processed_count: Number of transactions processed
+        failed_count: Number of transactions failed
+
+    Returns:
+        Updated BatchMetadata object or None if not found
+
+    Example:
+        >>> batch = await update_batch_progress(
+        ...     session, batch_id, processed_count=450, failed_count=2
+        ... )
+        >>> batch.processed_count
+        450
+    """
+    batch = await get_batch_metadata(session, batch_id)
+    if not batch:
+        return None
+
+    if processed_count is not None:
+        batch.processed_count = processed_count
+    if failed_count is not None:
+        batch.failed_count = failed_count
+
+    await session.flush()
+
+    logger.debug(
+        f"Batch progress updated: {batch_id}",
+        extra={
+            "extra_data": {
+                "batch_id": str(batch_id),
+                "processed_count": batch.processed_count,
+                "failed_count": batch.failed_count,
+                "total_transactions": batch.total_transactions,
+            }
+        },
+    )
+
+    return batch

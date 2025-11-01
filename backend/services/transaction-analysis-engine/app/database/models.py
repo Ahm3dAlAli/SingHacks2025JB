@@ -282,3 +282,41 @@ class RegulatoryRule(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
     )
+
+
+class BatchMetadata(Base):
+    """Batch processing metadata for CSV uploads"""
+
+    __tablename__ = "batch_metadata"
+
+    # Primary Key
+    batch_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4()
+    )
+
+    # Batch Info
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    total_transactions: Mapped[int] = mapped_column(Integer, nullable=False)
+    processed_count: Mapped[int] = mapped_column(Integer, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Status Tracking
+    status: Mapped[str] = mapped_column(
+        String(20),
+        CheckConstraint("status IN ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED')"),
+        nullable=False,
+        index=True,
+    )
+
+    # Timestamps
+    started_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
+    completed_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+
+    # Error Handling
+    error_message: Mapped[Optional[str]] = mapped_column(TEXT)
+
+    # Metadata
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )

@@ -72,6 +72,12 @@ app.add_middleware(
 )
 
 
+# Include API routers
+from app.api.routes import router as tae_router
+
+app.include_router(tae_router, prefix="/api/v1/tae", tags=["TAE"])
+
+
 # Global exception handlers
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

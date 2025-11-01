@@ -244,6 +244,40 @@ CREATE INDEX idx_regulatory_rules_is_active ON regulatory_rules(is_active);
 CREATE INDEX idx_regulatory_rules_effective_date ON regulatory_rules(effective_date);
 
 -- ============================================================================
+-- TABLE 6: batch_metadata
+-- Tracks batch processing status for CSV uploads
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS batch_metadata (
+    -- Primary Key
+    batch_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+    -- Batch Info
+    filename VARCHAR(255) NOT NULL,
+    total_transactions INTEGER NOT NULL,
+    processed_count INTEGER DEFAULT 0,
+    failed_count INTEGER DEFAULT 0,
+
+    -- Status Tracking
+    status VARCHAR(20) NOT NULL CHECK (status IN ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED')),
+
+    -- Timestamps
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+
+    -- Error Handling
+    error_message TEXT,
+
+    -- Metadata
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for batch_metadata
+CREATE INDEX idx_batch_metadata_batch_id ON batch_metadata(batch_id);
+CREATE INDEX idx_batch_metadata_status ON batch_metadata(status);
+CREATE INDEX idx_batch_metadata_created_at ON batch_metadata(created_at);
+
+-- ============================================================================
 -- TRIGGERS for updated_at timestamps
 -- ============================================================================
 
@@ -264,6 +298,9 @@ CREATE TRIGGER update_risk_assessments_updated_at BEFORE UPDATE ON risk_assessme
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_regulatory_rules_updated_at BEFORE UPDATE ON regulatory_rules
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_batch_metadata_updated_at BEFORE UPDATE ON batch_metadata
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================

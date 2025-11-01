@@ -81,3 +81,23 @@ async def close_db_connection():
     """
     await engine.dispose()
     logger.info("Database connection pool closed")
+
+
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Get an async database session for use in background tasks and batch processing.
+    This is similar to get_db() but provides a cleaner API for non-FastAPI contexts.
+
+    Usage:
+        async with get_async_session() as session:
+            # Use session here
+            await session.commit()
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
