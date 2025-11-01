@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  regulatory-db:
+    image: postgres:15-alpine
+    container_name: regulatory_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-regulatory_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-regulatory_pass}
+      POSTGRES_DB: ${DB_NAME:-regulatory_db}
+    volumes:
+      - regulatory_db_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-regulatory_user} -d ${DB_NAME:-regulatory_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  regulatory-service:
+    build: .
+    container_name: regulatory_service
+    environment:
+      - DB_HOST=regulatory-db
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-regulatory_db}
+      - DB_USER=${DB_USER:-regulatory_user}
+      - DB_PASSWORD=${DB_PASSWORD:-regulatory_pass}
+      - ENVIRONMENT=development
+    volumes:
+      - .:/app
+    ports:
+      - "8003:8003"
+    depends_on:
+      regulatory-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: regulatory_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@regulatory.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - regulatory-db
+
+volumes:
+  regulatory_db_data:
