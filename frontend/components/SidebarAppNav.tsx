@@ -77,7 +77,7 @@ export default function SidebarAppNav() {
             <NavItem href="/rules" label="Rules" Icon={ShieldCheck} />
             <NavItem href="/transactions" label="Transactions" Icon={CreditCard} />
             <NavItem href="/regulatory-updates" label="Regulatory Updates" Icon={Newspaper} after={<RegUpdatesBadge />} />
-            <NavItem href="/entities" label="Entities" Icon={Users} />
+            <NavItem href="/kyc" label="KYC" Icon={Users} />
           </SidebarMenu>
         </SidebarGroup>
         <SidebarGroup>

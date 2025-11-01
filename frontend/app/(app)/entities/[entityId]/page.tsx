@@ -16,10 +16,16 @@ type Person = {
 
 type Background = {
   entityId: string;
+  name: string;
   summary: string;
-  estNetWorthUSD: number;
-  reasoning: { assets: string[]; workLife: string[]; family: string[]; social: string[] };
-  sources: { label: string; url: string }[];
+  totals: { inflow: number; outflow: number; net: number };
+  counts: { txns: number; counterparties: number; currencies: number; daysActive: number };
+  lastSeen: string | null;
+  topCounterparties: { name: string; count: number; amount: number }[];
+  currencies: { code: string; amount: number }[];
+  channels: { channel: string; count: number }[];
+  sanctions: { clear: number; potential: number; hit: number; unknown: number };
+  flags: string[];
 };
 
 export default function EntityBackgroundPage() {
@@ -63,65 +69,76 @@ export default function EntityBackgroundPage() {
   return (
     <div className="space-y-6">
       <header className="rounded-lg border p-4">
-        <h1 className="text-xl font-semibold">Background Check — {person.name}</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">{person.occupation} • {person.employer} • {person.nationality} • DOB {person.dob}</p>
-        <div className="mt-3 flex flex-wrap gap-2 text-sm">
-          <Badge>Estimated Net Worth: ${bg.estNetWorthUSD.toLocaleString()}</Badge>
-          <Badge variant="outline">Relatives: {person.relatives.length}</Badge>
+        <h1 className="text-xl font-semibold">{person.name}</h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">{person.nationality || "—"}</p>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+          <Metric label="Inflow" value={bg.totals.inflow} />
+          <Metric label="Outflow" value={bg.totals.outflow} />
+          <Metric label="Net" value={bg.totals.net} />
+          <div className="rounded border p-2 text-center">
+            <div className="text-[10px] uppercase text-zinc-500">Transactions</div>
+            <div className="text-sm font-semibold">{bg.counts.txns}</div>
+          </div>
         </div>
+        {bg.flags.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {bg.flags.map((f, i) => (
+              <Badge key={i}>{f}</Badge>
+            ))}
+          </div>
+        ) : null}
       </header>
 
       <section className="rounded-lg border p-4">
         <h2 className="text-sm font-semibold">Summary</h2>
         <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{bg.summary}</p>
+        <p className="mt-1 text-xs text-zinc-500">Last seen: {bg.lastSeen ? new Date(bg.lastSeen).toLocaleString("en-SG", { timeZone: "Asia/Singapore" }) : "—"}</p>
       </section>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <section className="rounded-lg border p-4">
-          <h3 className="text-sm font-semibold">Assets</h3>
-          <ul className="mt-2 list-disc pl-5 text-sm">
-            {bg.reasoning.assets.map((a, i) => (
-              <li key={i}>{a}</li>
+          <h3 className="text-sm font-semibold">Top Counterparties</h3>
+          <ul className="mt-2 space-y-1 text-sm">
+            {bg.topCounterparties.length === 0 ? <li className="text-zinc-500">None</li> : bg.topCounterparties.map((c) => (
+              <li key={c.name} className="flex justify-between">
+                <span className="truncate pr-2">{c.name}</span>
+                <span className="text-zinc-600">{c.count} • {c.amount.toLocaleString()}</span>
+              </li>
             ))}
           </ul>
         </section>
         <section className="rounded-lg border p-4">
-          <h3 className="text-sm font-semibold">Work Life</h3>
-          <ul className="mt-2 list-disc pl-5 text-sm">
-            {bg.reasoning.workLife.map((a, i) => (
-              <li key={i}>{a}</li>
+          <h3 className="text-sm font-semibold">Currencies</h3>
+          <ul className="mt-2 space-y-1 text-sm">
+            {bg.currencies.length === 0 ? <li className="text-zinc-500">None</li> : bg.currencies.map((c) => (
+              <li key={c.code} className="flex justify-between">
+                <span>{c.code}</span>
+                <span className="text-zinc-600">{c.amount.toLocaleString()}</span>
+              </li>
             ))}
           </ul>
         </section>
         <section className="rounded-lg border p-4">
-          <h3 className="text-sm font-semibold">Family & Relatives</h3>
-          <ul className="mt-2 list-disc pl-5 text-sm">
-            {bg.reasoning.family.map((a, i) => (
-              <li key={i}>{a}</li>
+          <h3 className="text-sm font-semibold">Channels</h3>
+          <ul className="mt-2 space-y-1 text-sm">
+            {bg.channels.length === 0 ? <li className="text-zinc-500">None</li> : bg.channels.map((c) => (
+              <li key={c.channel} className="flex justify-between">
+                <span className="truncate pr-2">{c.channel}</span>
+                <span className="text-zinc-600">{c.count}</span>
+              </li>
             ))}
           </ul>
         </section>
         <section className="rounded-lg border p-4">
-          <h3 className="text-sm font-semibold">Social / Other Signals</h3>
-          <ul className="mt-2 list-disc pl-5 text-sm">
-            {bg.reasoning.social.map((a, i) => (
-              <li key={i}>{a}</li>
-            ))}
-          </ul>
+          <h3 className="text-sm font-semibold">Sanctions</h3>
+          <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+            <Badge variant="outline">CLEAR: {bg.sanctions.clear}</Badge>
+            <Badge variant="outline">POTENTIAL_MATCH: {bg.sanctions.potential}</Badge>
+            <Badge variant="outline">HIT: {bg.sanctions.hit}</Badge>
+            <Badge variant="outline">UNKNOWN: {bg.sanctions.unknown}</Badge>
+          </div>
         </section>
       </div>
-
-      <section className="rounded-lg border p-4">
-        <h3 className="text-sm font-semibold">Sources</h3>
-        <ul className="mt-2 space-y-1 text-sm">
-          {bg.sources.map((s, i) => (
-            <li key={i}>
-              <a className="underline" href={s.url} target="_blank" rel="noreferrer">{s.label}</a>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-xs text-zinc-500">Disclaimer: This background report is generated from public, non-KYC sources for demo purposes only.</p>
-      </section>
     </div>
   );
 }
@@ -132,3 +149,11 @@ function Badge({ children, variant = "solid" }: { children: React.ReactNode; var
   return <span className={`${base} bg-primary/10 text-primary`}>{children}</span>;
 }
 
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded border p-2 text-center">
+      <div className="text-[10px] uppercase text-zinc-500">{label}</div>
+      <div className="text-sm font-semibold">{value.toLocaleString()}</div>
+    </div>
+  );
+}

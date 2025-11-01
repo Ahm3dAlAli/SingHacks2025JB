@@ -41,20 +41,34 @@ Browser
   └─ POST /api/agent/feedback + POST /api/alerts/{id}/status → action with comment
 ```
 
-Background report
+Entities & background report
 ```
 /entities (client)
-  ├─ GET /api/entities → people list
-  ├─ GET /api/entities/{id} → person profile
-  └─ POST /api/agent/background/{id} → unconventional background report
+  ├─ GET /api/entities → list derived from transaction counterparties
+  ├─ GET /api/entities/{id} → entity profile (from transactions)
+  └─ POST /api/agent/background/{id} → transaction-derived background summary
 ```
 
 Transactions
 ```
 /transactions (client)
-  ├─ GET /api/entities → entity dropdown
-  ├─ GET /api/entities/{id}/tx → recent transactions for entity
-  └─ POST /api/tx/evaluate → per-transaction evaluation (score/decision)
+  ├─ Loads CSV client-side from /public/data (or upload)
+  ├─ Validates rows with Zod (`TransactionFullSchema`) and maps to `Transaction`
+  └─ Provides in-memory filtering, sorting, and export
+```
+
+Server helpers
+```
+lib/server/txData.ts
+  ├─ Reads CSV from /public/data
+  ├─ Validates with Zod (same schema as client)
+  └─ Exposes computeRisk/Severity/RuleHits for alert badges
+```
+
+API
+```
+GET /api/v1/transactions
+  └─ Server-validated CSV → { items: TransactionFull[], errors, warnings }
 ```
 
 Regulatory updates → rules suggestions
@@ -83,6 +97,10 @@ UI behavior
   - Proposed: “Review Proposal” button + “Proposed” pill
   - Applied: “View Applied” button + “Applied” pill
 - The review page shows: full current rule, suggested rule, unified red/green diff with +/- header counts, structured changes, validation output, replay impact, rationale, and actions.
+
+Alerts scoring (derived from transaction data)
+- Severity: Sanctions HIT → critical; POTENTIAL_MATCH → high; AML score thresholds → medium/high.
+- Rule hits: sanctions (HIT/PM), high amount, PEP flags, travel rule incomplete, VA exposure without disclosure, SWIFT field gaps (F50/F59/F70/F71 if MT present), KYC overdue, EDD required but not performed, SOW not documented, FX spread high, high daily cash total/count, cash ID not verified, weekend / out-of-hours booking.
 
 Data model (mock)
 - `lib/mock/suggestions.ts` stores suggestions in-memory with fields: `status`, `unifiedDiff`, `structuredDiff[]`, `createdVersionId`, `compileArtifact`, `promotedAt`.

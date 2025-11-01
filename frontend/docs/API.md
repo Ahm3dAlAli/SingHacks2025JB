@@ -99,28 +99,8 @@ curl 'http://localhost:3000/api/entities/p-1'
 curl -X POST 'http://localhost:3000/api/agent/background/p-1'
 ```
 
-## Transactions & Scoring
-- Ingest batch (mock)
-```
-curl -X POST 'http://localhost:3000/api/tx/ingest' \
-  -H 'Content-Type: application/json' \
-  -d '{"items":[{"id":"t1"},{"id":"t2"}]}'
-```
-- Transaction detail + features + evaluation
-```
-curl 'http://localhost:3000/api/tx/demo-tx-1'
-```
-- List transactions for an entity
-```
-curl 'http://localhost:3000/api/entities/p-1/tx'
-```
-- Evaluate payload (sync)
-```
-curl -X POST 'http://localhost:3000/api/tx/evaluate' \
-  -H 'Content-Type: application/json' \
-  -d '{"amount":150000,"features":{"velocity":0.8,"geoRisk":0.7}}'
-```
-- Entity score trend
+## Transactions
+The Transactions UI is CSV-driven and parsed client-side. There are no backing API endpoints for ingest/evaluate/score in this demo.
 
 ## Regulatory Updates
 - List updates (optional filters `authority`, `q`)
@@ -230,9 +210,7 @@ curl 'http://localhost:3000/api/rules/versions/v-rule-1-1/diff'
 ```
 curl -X POST 'http://localhost:3000/api/rules/replay' -H 'Content-Type: application/json' -d '{"hours":6}'
 ```
-```
-curl 'http://localhost:3000/api/scores/entities/p-1'
-```
+
 ## Regulatory Ingestion (scraper-v1)
 - List sources
 ```

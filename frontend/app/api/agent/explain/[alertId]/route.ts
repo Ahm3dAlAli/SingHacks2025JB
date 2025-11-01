@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
-import { generateAlertDetail } from "@/lib/mock/alerts";
+import { loadTransactions, computeRuleHits } from "@/lib/server/txData";
 
 export async function POST(_: Request, ctx: { params: Promise<{ alertId: string }> }) {
   const { alertId } = await ctx.params;
-  const d = generateAlertDetail(alertId);
+  const { byId } = await loadTransactions();
+  const tx = byId.get(alertId);
+  if (!tx) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const hits = computeRuleHits(tx);
   const rationale = {
-    rules: d.ruleHits.map((r) => ({ id: r.id, name: r.name, contribution: r.score })),
+    rules: hits.map((r) => ({ id: r.id, name: r.name, contribution: r.score })),
     evidence: {
-      transactions: d.transactions.slice(0, 2).map((t) => ({ id: t.id, amount: t.amount, cp: t.counterparty })),
-      documents: d.documents.map((doc) => ({ id: doc.id, name: doc.name, anomaly: doc.anomaly ?? null })),
+      transactions: [{ id: tx.transaction_id, amount: tx.amount, cp: tx.display_counterparty || "" }],
+      documents: [],
     },
-    summary: `Risk ${d.risk} driven by ${d.ruleHits.map((r) => r.name).join(", ")}.`
+    summary: `Risk drivers: ${hits.map((r) => r.name).join(", ")}.`,
   };
-  return NextResponse.json({ id: d.id, rationale });
+  return NextResponse.json({ id: tx.transaction_id, rationale });
 }
-
