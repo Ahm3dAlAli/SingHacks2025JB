@@ -1,0 +1,155 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # Shared PostgreSQL Database for All Services
+  # ============================================
+
+  postgres:
+    image: postgres:15
+    container_name: aml_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/init-all-dbs.sql:/docker-entrypoint-initdb.d/00_init_all_dbs.sql
+      - ./backend/services/transaction-analysis-engine/database/init.sql:/docker-entrypoint-initdb.d/01_tae_init.sql
+      - ./backend/services/transaction-analysis-engine/database/seed_rules.sql:/docker-entrypoint-initdb.d/02_tae_seed_rules.sql
+      - ./backend/services/regulatory-ingestion-engine/database/init.sql:/docker-entrypoint-initdb.d/03_regulatory_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - aml_network
+    restart: unless-stopped
+
+  # ============================================
+  # Transaction Analysis Engine (TAE) - Port 8002
+  # ============================================
+
+  tae-service:
+    build:
+      context: ./backend/services/transaction-analysis-engine
+      dockerfile: Dockerfile
+    container_name: tae_service
+    environment:
+      # Database Configuration
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${TAE_POSTGRES_DB:-aml_monitoring}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      # Groq API Configuration
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+
+      # Application Configuration
+      TAE_PORT: ${TAE_PORT:-8002}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      WORKERS: ${WORKERS:-4}
+
+      # Environment
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./backend/services/transaction-analysis-engine/app:/app/app
+      - ./backend/services/transaction-analysis-engine/tests:/app/tests
+      - ./backend/services/transaction-analysis-engine/data:/app/data
+      - ./backend/services/transaction-analysis-engine/logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8002/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - aml_network
+    restart: unless-stopped
+
+  # ============================================
+  # Regulatory Ingestion Engine - Port 8003
+  # ============================================
+
+  regulatory-service:
+    build:
+      context: ./backend/services/regulatory-ingestion-engine
+      dockerfile: Dockerfile
+    container_name: regulatory_service
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${REGULATORY_DB_NAME:-regulatory_db}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - ENVIRONMENT=development
+    volumes:
+      - ./backend/services/regulatory-ingestion-engine:/app
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aml_network
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: aml_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@aml.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - aml_network
+    restart: unless-stopped
+
+  # ============================================
+  # Remediation Workflow Engine - Port 8004
+  # ============================================
+
+  remediation-service:
+    build:
+      context: ./backend/services/remediation-workflow-engine
+      dockerfile: Dockerfile
+    container_name: remediation_service
+    ports:
+      - "8004:8004"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${REMEDIATION_DB_NAME:-aml_workflows}
+      - SMTP_SERVER=${SMTP_SERVER:-smtp.company.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend/services/remediation-workflow-engine/logs:/app/logs
+    networks:
+      - aml_network
+    restart: unless-stopped
+
+# Networks
+networks:
+  aml_network:
+    driver: bridge
+
+# Volumes
+volumes:
+  postgres_data:
+    driver: local
