@@ -3,13 +3,14 @@ API Routes for Transaction Analysis Engine.
 Implements all 7 REST API endpoints for batch and single transaction processing.
 """
 
+import asyncio
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, BackgroundTasks, UploadFile, File, HTTPException, Query, Depends, status
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.models import (
@@ -25,21 +26,27 @@ from app.api.models import (
     ExplanationResponse,
     RuleViolation,
     BehavioralFlag,
+    RuleSyncRequest,
+    RuleSyncResponse,
 )
 from app.database.connection import get_db, get_async_session
-from app.database.models import Transaction, RiskAssessment, AgentExecutionLog
+from app.database.models import Transaction, RiskAssessment, AgentExecutionLog, RegulatoryRule, AuditTrail
 from app.database.queries import (
     get_batch_metadata,
     save_transaction,
     save_risk_assessment,
 )
 from app.services.batch_processor import BatchProcessor
+from app.services.regulatory_client import regulatory_client, RegulatoryServiceError
 from app.workflows.workflow import execute_workflow
 from app.utils.logger import logger
 
 
 # Create APIRouter
 router = APIRouter()
+
+# Sync lock to prevent concurrent rule syncs
+_sync_lock = asyncio.Lock()
 
 
 # ============================================================================
@@ -585,3 +592,228 @@ async def get_explanation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
+
+
+# ============================================================================
+# REGULATORY RULES SYNC ENDPOINT
+# ============================================================================
+
+
+@router.post(
+    "/rules/sync",
+    response_model=RuleSyncResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Sync regulatory rules from Regulatory Service",
+    description="Fetch rules from Regulatory Ingestion Engine and update TAE database with UPSERT logic",
+)
+async def sync_regulatory_rules(
+    request: RuleSyncRequest = RuleSyncRequest(),
+    session: AsyncSession = Depends(get_db),
+):
+    """
+    Synchronize regulatory rules from Regulatory Service.
+
+    Process:
+    1. Check sync lock (prevent concurrent syncs)
+    2. Fetch rules from Regulatory Service API (via RegulatoryClient)
+    3. Transform each rule to TAE schema
+    4. Upsert into regulatory_rules table (SELECT → INSERT/UPDATE)
+    5. Log sync operation to audit_trail
+    6. Return status with counts
+
+    Args:
+        request: Sync configuration (jurisdiction filter, force, dry_run)
+        session: Database session
+
+    Returns:
+        RuleSyncResponse with sync statistics
+
+    Raises:
+        HTTPException 409: If sync already in progress
+        HTTPException 503: If Regulatory Service unavailable
+        HTTPException 500: If sync fails unexpectedly
+    """
+    # Check if sync already in progress
+    if _sync_lock.locked():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Rule sync already in progress. Please wait for it to complete.",
+        )
+
+    async with _sync_lock:
+        start_time = datetime.utcnow()
+        stats = {
+            "total_fetched": 0,
+            "rules_added": 0,
+            "rules_updated": 0,
+            "rules_failed": 0,
+            "errors": [],
+        }
+
+        try:
+            logger.info(
+                "Starting rule sync",
+                extra={
+                    "extra_data": {
+                        "jurisdiction": request.jurisdiction,
+                        "force": request.force,
+                        "dry_run": request.dry_run,
+                    }
+                },
+            )
+
+            # Step 1: Fetch rules from Regulatory Service
+            try:
+                regulatory_rules = await regulatory_client.fetch_rules(
+                    jurisdiction=request.jurisdiction,
+                    status="ACTIVE",
+                    use_cache=not request.force,  # Skip cache if force=True
+                )
+                stats["total_fetched"] = len(regulatory_rules)
+
+                logger.info(
+                    f"Fetched {len(regulatory_rules)} rules from Regulatory Service"
+                )
+
+            except RegulatoryServiceError as e:
+                logger.error(
+                    f"Failed to fetch rules from Regulatory Service: {e}",
+                    exc_info=True,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Regulatory Service temporarily unavailable. Please try again later.",
+                )
+
+            # Step 2: Transform and upsert each rule
+            for reg_rule in regulatory_rules:
+                try:
+                    # Transform to TAE schema
+                    tae_rule = regulatory_client.transform_rule(reg_rule)
+
+                    if request.dry_run:
+                        # Don't actually insert, just count
+                        stats["rules_added"] += 1
+                        continue
+
+                    # Check if rule exists
+                    existing_query = select(RegulatoryRule).where(
+                        RegulatoryRule.rule_id == tae_rule.rule_id
+                    )
+                    result = await session.execute(existing_query)
+                    existing_rule = result.scalar_one_or_none()
+
+                    if existing_rule:
+                        # Update existing rule
+                        update_stmt = (
+                            update(RegulatoryRule)
+                            .where(RegulatoryRule.rule_id == tae_rule.rule_id)
+                            .values(
+                                rule_text=tae_rule.rule_text,
+                                rule_parameters=tae_rule.rule_parameters,
+                                severity=tae_rule.severity,
+                                priority=tae_rule.priority,
+                                effective_date=tae_rule.effective_date,
+                                expiry_date=tae_rule.expiry_date,
+                                is_active=tae_rule.is_active,
+                                updated_at=datetime.utcnow(),
+                            )
+                        )
+                        await session.execute(update_stmt)
+                        stats["rules_updated"] += 1
+
+                        logger.debug(f"Updated rule: {tae_rule.rule_id}")
+
+                    else:
+                        # Insert new rule
+                        session.add(tae_rule)
+                        stats["rules_added"] += 1
+
+                        logger.debug(f"Added new rule: {tae_rule.rule_id}")
+
+                except Exception as e:
+                    stats["rules_failed"] += 1
+                    error_msg = f"Failed to process rule {reg_rule.get('id', reg_rule.get('rule_number', 'unknown'))}: {str(e)}"
+
+                    # Limit errors array to first 10
+                    if len(stats["errors"]) < 10:
+                        stats["errors"].append(error_msg)
+                    elif len(stats["errors"]) == 10:
+                        stats["errors"].append("... additional errors truncated")
+
+                    logger.error(error_msg, exc_info=True)
+
+            # Step 3: Commit transaction (unless dry_run)
+            if not request.dry_run:
+                await session.commit()
+
+                # Step 4: Log to audit_trail (separate try-catch to prevent audit failure from failing sync)
+                try:
+                    audit_entry = AuditTrail(
+                        service_name="TAE",
+                        action="rules_sync",
+                        resource_type="regulatory_rules",
+                        details={
+                            "jurisdiction": request.jurisdiction,
+                            "total_fetched": stats["total_fetched"],
+                            "rules_added": stats["rules_added"],
+                            "rules_updated": stats["rules_updated"],
+                            "rules_failed": stats["rules_failed"],
+                            "force": request.force,
+                        },
+                    )
+                    session.add(audit_entry)
+                    await session.commit()
+                except Exception as audit_error:
+                    logger.error(
+                        f"Failed to log audit trail for sync: {audit_error}",
+                        exc_info=True,
+                        extra={"extra_data": {"sync_stats": stats}},
+                    )
+                    # Don't fail entire sync due to audit failure
+
+            # Calculate duration
+            duration = (datetime.utcnow() - start_time).total_seconds()
+
+            # Determine overall status
+            if stats["rules_failed"] == 0:
+                sync_status = "success"
+            elif stats["rules_added"] + stats["rules_updated"] > 0:
+                sync_status = "partial"
+            else:
+                sync_status = "failed"
+
+            logger.info(
+                f"Rule sync completed: {sync_status}",
+                extra={
+                    "extra_data": {
+                        "status": sync_status,
+                        "duration_seconds": duration,
+                        **stats,
+                    }
+                },
+            )
+
+            return RuleSyncResponse(
+                status=sync_status,
+                jurisdiction=request.jurisdiction,
+                total_fetched=stats["total_fetched"],
+                rules_added=stats["rules_added"],
+                rules_updated=stats["rules_updated"],
+                rules_failed=stats["rules_failed"],
+                errors=stats["errors"],
+                duration_seconds=duration,
+                timestamp=datetime.utcnow(),
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error during rule sync: {e}", exc_info=True
+            )
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Rule sync failed due to unexpected error. Please contact support.",
+            )

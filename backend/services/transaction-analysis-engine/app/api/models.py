@@ -564,3 +564,74 @@ class ExplanationResponse(BaseModel):
             }
         }
     }
+
+
+# ============================================================================
+# RULE SYNC MODELS
+# ============================================================================
+
+
+class RuleSyncRequest(BaseModel):
+    """Request model for regulatory rules synchronization"""
+
+    jurisdiction: Optional[str] = Field(
+        None,
+        pattern="^(HK|SG|CH|US|UK)$",
+        description="Sync rules for specific jurisdiction only",
+    )
+    force: bool = Field(
+        False, description="Force sync even if cached rules exist (bypass cache)"
+    )
+    dry_run: bool = Field(
+        False, description="Preview changes without applying to database"
+    )
+
+    @field_validator("jurisdiction")
+    @classmethod
+    def validate_jurisdiction(cls, v: Optional[str]) -> Optional[str]:
+        """Ensure jurisdiction is uppercase if provided"""
+        return v.upper() if v else None
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "jurisdiction": "HK",
+                "force": False,
+                "dry_run": False,
+            }
+        }
+    }
+
+
+class RuleSyncResponse(BaseModel):
+    """Response model for regulatory rules synchronization"""
+
+    status: str = Field(..., description="Sync status: success/partial/failed")
+    jurisdiction: Optional[str] = Field(
+        None, description="Jurisdiction that was synced (if filtered)"
+    )
+    total_fetched: int = Field(..., description="Total rules fetched from service")
+    rules_added: int = Field(..., description="Number of new rules added")
+    rules_updated: int = Field(..., description="Number of existing rules updated")
+    rules_failed: int = Field(..., description="Number of rules that failed to process")
+    errors: List[str] = Field(
+        default_factory=list, description="Error messages (limited to first 10)"
+    )
+    duration_seconds: float = Field(..., description="Total sync duration in seconds")
+    timestamp: datetime = Field(..., description="Sync completion timestamp")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "status": "success",
+                "jurisdiction": "HK",
+                "total_fetched": 15,
+                "rules_added": 5,
+                "rules_updated": 10,
+                "rules_failed": 0,
+                "errors": [],
+                "duration_seconds": 2.5,
+                "timestamp": "2025-11-01T15:30:00Z",
+            }
+        }
+    }
