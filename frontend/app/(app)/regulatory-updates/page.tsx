@@ -17,6 +17,7 @@ type RegUpdate = {
 
 type Suggestion = {
   id: string;
+  updateId: string;
   title: string;
   createdAt: string;
   promotedAt?: string;

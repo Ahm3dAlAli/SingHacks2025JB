@@ -12,7 +12,6 @@ export default function Header() {
 
   const onLogout = useCallback(() => {
     logout();
-    setLoggedIn(false);
     router.push("/");
   }, [router]);
 

@@ -144,6 +144,30 @@ services:
       - aml_network
     restart: unless-stopped
 
+  # ============================================
+  # Frontend - Next.js Application - Port 3000
+  # ============================================
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: aml_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_TAE_API_URL=http://tae-service:8002
+      - NEXT_PUBLIC_REGULATORY_API_URL=http://regulatory-service:8003
+      - NEXT_PUBLIC_REMEDIATION_API_URL=http://remediation-service:8004
+    depends_on:
+      - tae-service
+      - regulatory-service
+      - remediation-service
+    networks:
+      - aml_network
+    restart: unless-stopped
+
 # Networks
 networks:
   aml_network:
