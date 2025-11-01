@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { isLoggedIn, saveToken } from "@/lib/auth";
+import { saveRole } from "@/lib/use-role";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,9 +27,10 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = (await res.json()) as { ok: boolean; token?: string; error?: string };
+      const data = (await res.json()) as { ok: boolean; token?: string; role?: "relationship_manager" | "compliance_manager" | "legal"; error?: string };
       if (!res.ok || !data.ok || !data.token) throw new Error(data.error || "Login failed");
       saveToken(data.token);
+      saveRole(data.role || "analyst");
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Something went wrong");

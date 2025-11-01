@@ -23,7 +23,7 @@ Browser
   - AI summary (from `/api/agent/summarize/alert/{id}`)
   - Rationale panel (rules + evidence from `/api/agent/explain/{id}`)
   - Actions: Approve/Hold/Escalate + optional comment
-  - Background button → `/entities/{entityId}`
+  - Background button → `/kyc/{entityId}`
 - Detail: `/alerts/[id]` shows header info, person name, rule hits, transactions, documents, timeline, and AI summary; includes Background Check link.
 
 ## API Surface (Mock)
@@ -41,20 +41,48 @@ Browser
   └─ POST /api/agent/feedback + POST /api/alerts/{id}/status → action with comment
 ```
 
-Background report
+KYC & background report
 ```
 /entities (client)
-  ├─ GET /api/entities → people list
-  ├─ GET /api/entities/{id} → person profile
-  └─ POST /api/agent/background/{id} → unconventional background report
+  ├─ GET /api/entities → list derived from transaction counterparties
+  ├─ GET /api/entities/{id} → client profile (from transactions)
+  └─ POST /api/agent/background/{id} → transaction-derived background summary (+ KYC profile)
 ```
 
 Transactions
 ```
 /transactions (client)
-  ├─ GET /api/entities → entity dropdown
-  ├─ GET /api/entities/{id}/tx → recent transactions for entity
-  └─ POST /api/tx/evaluate → per-transaction evaluation (score/decision)
+  ├─ Loads CSV client-side from /public/data (or upload)
+  ├─ Validates rows with Zod (`TransactionFullSchema`) and maps to `Transaction`
+  └─ Provides in-memory filtering, sorting, and export
+```
+
+Server helpers
+```
+lib/server/txData.ts
+  ├─ Reads CSV from /public/data
+  ├─ Validates with Zod (same schema as client)
+  └─ Exposes computeRisk/Severity/RuleHits for alert badges
+```
+
+API
+```
+GET /api/v1/transactions
+  └─ Server-validated CSV → { items: TransactionFull[], errors, warnings }
+```
+
+KYC list behavior
+- One-card-per-row with badges: Type (PI/Corporate), PEP, Reputational, Adverse media, Last seen.
+- At-a-glance metrics: Txns, Inflow, Outflow, Net; Sanctions summary; top counterparties.
+- Pagination on the client (page size selector + prev/next); background summaries fetched per page and cached.
+
+Documentation review
+```
+/documentation-review (client)
+  ├─ RM uploads: POST /api/docs/upload (multipart form-data)
+  ├─ Queues: GET /api/docs/review?role=relationship_manager|compliance_manager|legal
+  ├─ Item actions: GET/POST /api/docs/items/{id} (approve/reject/escalate with comments, optional fraud flag)
+  └─ Client linkage: GET /api/docs/by-entity/{entityId}
 ```
 
 Regulatory updates → rules suggestions
@@ -83,6 +111,15 @@ UI behavior
   - Proposed: “Review Proposal” button + “Proposed” pill
   - Applied: “View Applied” button + “Applied” pill
 - The review page shows: full current rule, suggested rule, unified red/green diff with +/- header counts, structured changes, validation output, replay impact, rationale, and actions.
+
+Alerts scoring (derived from transaction data)
+- Severity: Sanctions HIT → critical; POTENTIAL_MATCH → high; AML score thresholds → medium/high.
+- Rule hits: sanctions (HIT/PM), high amount, PEP flags, travel rule incomplete, VA exposure without disclosure, SWIFT field gaps (F50/F59/F70/F71 if MT present), KYC overdue, EDD required but not performed, SOW not documented, FX spread high, high daily cash total/count, cash ID not verified, weekend / out-of-hours booking.
+
+RBAC roles
+- relationship_manager: uploads docs, can act on alerts.
+- compliance_manager: acts on alerts, reviews docs (approve/reject/escalate with comment/fraud flag).
+- legal: reviews escalated docs (approve/reject).
 
 Data model (mock)
 - `lib/mock/suggestions.ts` stores suggestions in-memory with fields: `status`, `unifiedDiff`, `structuredDiff[]`, `createdVersionId`, `compileArtifact`, `promotedAt`.

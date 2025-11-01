@@ -86,41 +86,28 @@ curl -X POST 'http://localhost:3000/api/agent/tune' \
 - All data is ephemeral and per-request only (no DB).
 
 ## Entities & Background Reports
-- List people
+- List clients
 ```
 curl 'http://localhost:3000/api/entities'
 ```
-- Get person profile
+- Get client profile
 ```
 curl 'http://localhost:3000/api/entities/p-1'
 ```
-- Generate background report (unconventional, public-source style)
+- Generate background summary + KYC profile (derived)
 ```
 curl -X POST 'http://localhost:3000/api/agent/background/p-1'
 ```
+- List documents linked to a client
+```
+curl 'http://localhost:3000/api/docs/by-entity/p-1'
+```
 
-## Transactions & Scoring
-- Ingest batch (mock)
+## Transactions
+- Validate server-side and return full rows
 ```
-curl -X POST 'http://localhost:3000/api/tx/ingest' \
-  -H 'Content-Type: application/json' \
-  -d '{"items":[{"id":"t1"},{"id":"t2"}]}'
+curl 'http://localhost:3000/api/v1/transactions'
 ```
-- Transaction detail + features + evaluation
-```
-curl 'http://localhost:3000/api/tx/demo-tx-1'
-```
-- List transactions for an entity
-```
-curl 'http://localhost:3000/api/entities/p-1/tx'
-```
-- Evaluate payload (sync)
-```
-curl -X POST 'http://localhost:3000/api/tx/evaluate' \
-  -H 'Content-Type: application/json' \
-  -d '{"amount":150000,"features":{"velocity":0.8,"geoRisk":0.7}}'
-```
-- Entity score trend
 
 ## Regulatory Updates
 - List updates (optional filters `authority`, `q`)
@@ -230,9 +217,7 @@ curl 'http://localhost:3000/api/rules/versions/v-rule-1-1/diff'
 ```
 curl -X POST 'http://localhost:3000/api/rules/replay' -H 'Content-Type: application/json' -d '{"hours":6}'
 ```
-```
-curl 'http://localhost:3000/api/scores/entities/p-1'
-```
+
 ## Regulatory Ingestion (scraper-v1)
 - List sources
 ```
@@ -295,4 +280,33 @@ curl 'http://localhost:3000/api/rules/versions/v-rule-1-0/diff'
 - Replay (re-evaluate window)
 ```
 curl -X POST 'http://localhost:3000/api/rules/replay' -H 'Content-Type: application/json' -d '{"hours":6}'
+```
+## Documentation Review
+- Upload (RM)
+```
+curl -X POST 'http://localhost:3000/api/docs/upload' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'title=Purchase Agreement' \
+  -F 'entityId=p-1' \
+  -F 'role=relationship_manager' \
+  -F 'file=@/path/to/file.pdf;type=application/pdf'
+```
+- Review queue
+```
+curl 'http://localhost:3000/api/docs/review?role=compliance_manager'
+```
+- Item detail
+```
+curl 'http://localhost:3000/api/docs/items/abc123'
+```
+- Take action (approve/reject/escalate)
+```
+curl -X POST 'http://localhost:3000/api/docs/items/abc123' \
+  -H 'Content-Type: application/json' \
+  -d '{"role":"compliance_manager","action":"escalate","note":"Reverse image hit","fraud":true}'
+```
+- List docs (markdown) and fetch content (for browsing `/docs`)
+```
+curl 'http://localhost:3000/api/docs/list'
+curl 'http://localhost:3000/api/docs/README'
 ```

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { entityScoreTrend } from "@/lib/mock/transactions";
+import { listByEntity } from "@/lib/server/docsStore";
 
 export async function GET(_: Request, ctx: { params: Promise<{ entityId: string }> }) {
   const { entityId } = await ctx.params;
-  return NextResponse.json(entityScoreTrend(entityId));
+  const items = listByEntity(entityId);
+  return NextResponse.json({ items });
 }
 
