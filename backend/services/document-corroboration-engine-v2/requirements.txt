@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+python-multipart
+pypdf
+python-docx
+pydantic-settings
+requests
+pillow
+pytesseract
