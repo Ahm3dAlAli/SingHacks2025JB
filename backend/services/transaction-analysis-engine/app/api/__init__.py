@@ -2,7 +2,8 @@
 API models and data transfer objects for Transaction Analysis Engine.
 """
 
-from app.api.models import (
+# Import models from the models package
+from .models import (
     SeverityLevel,
     AlertLevel,
     RuleViolation,

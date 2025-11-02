@@ -143,6 +143,7 @@ export default function EntityBackgroundPage() {
     // Optionally include counterparties
     let pool = items as (AdverseItem & { subject: string; subjectType: 'client' | 'counterparty' })[];
     async function fetchCounterpartyMentions() {
+      if (!bg) return; // Exit early if bg is null
       try {
         const cps = (bg?.topCounterparties || []).slice(0, 5).map((c) => c.name).filter(Boolean);
         const results = await Promise.all(

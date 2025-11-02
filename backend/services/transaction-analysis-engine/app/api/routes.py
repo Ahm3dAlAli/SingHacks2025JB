@@ -14,12 +14,6 @@ from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.models import (
-    BatchUploadResponse,
-    BatchStatusResponse,
-    BatchResultsResponse,
-    BatchResultsSummary,
-    BatchResultItem,
-    BatchResultsPagination,
     TransactionAnalysisRequest,
     TransactionAnalysisResponse,
     RiskDetailResponse,
@@ -28,6 +22,14 @@ from app.api.models import (
     BehavioralFlag,
     RuleSyncRequest,
     RuleSyncResponse,
+)
+from app.api.models.batch_models import (
+    BatchUploadResponse,
+    BatchStatusResponse,
+    BatchResultsResponse,
+    BatchResultsSummary,
+    BatchResultItem,
+    BatchResultsPagination,
 )
 from app.database.connection import get_db, get_async_session
 from app.database.models import Transaction, RiskAssessment, AgentExecutionLog, RegulatoryRule, AuditTrail

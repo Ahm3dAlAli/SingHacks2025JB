@@ -14,14 +14,16 @@ from sqlalchemy.ext.asyncio import (
 from app.config import settings
 from app.utils.logger import logger
 
+# Construct the database URL
+SQLALCHEMY_DATABASE_URL = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
 
 # Create async engine with connection pooling
 engine: AsyncEngine = create_async_engine(
-    settings.database_url,
+    SQLALCHEMY_DATABASE_URL,
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_pre_ping=True,  # Verify connections before using
-    echo=settings.is_development,  # Log SQL in development
+    echo=settings.ENVIRONMENT == "development",  # Log SQL in development
 )
 
 # Create async session factory

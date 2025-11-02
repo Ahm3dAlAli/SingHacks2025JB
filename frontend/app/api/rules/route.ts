@@ -1,13 +1,47 @@
 import { NextResponse } from "next/server";
-import { listRules } from "@/lib/mock/rules";
+import type { NextRequest } from "next/server";
 
-export async function GET() {
-  return NextResponse.json({ items: listRules() });
+// This is a proxy endpoint that forwards requests to the backend service
+export async function GET(request: NextRequest) {
+  try {
+    // Get query parameters from the request
+    const { searchParams } = new URL(request.url);
+    const params = new URLSearchParams();
+    
+    // Forward all query parameters to the backend
+    searchParams.forEach((value, key) => {
+      params.append(key, value);
+    });
+  
+    // Build the backend URL with query parameters
+    const backendUrl = `http://tae-service:8002/api/v1/rules?${params.toString()}`;
+    
+    // Make request to the backend
+    const response = await fetch(backendUrl, {
+      headers: {
+        'Accept': 'application/json',
+      },
+      // Add cache control headers to prevent caching
+      next: { revalidate: 0 },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      return NextResponse.json(
+        { error: error.detail || 'Failed to fetch rules' },
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error fetching rules:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 }
 
-export async function POST(request: Request) {
-  const body = await request.json().catch(() => ({}));
-  const id = `rule-${Date.now()}`;
-  return NextResponse.json({ id, name: body.name ?? "New Rule", status: "inactive", versionId: `v-${id}-0`, dsl: body.dsl ?? "", createdAt: new Date().toISOString() });
-}
-
+export const dynamic = 'force-dynamic'; // Ensure the route is handled at runtime

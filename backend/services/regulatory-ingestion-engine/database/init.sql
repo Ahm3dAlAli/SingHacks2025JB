@@ -136,7 +136,7 @@ CREATE INDEX IF NOT EXISTS idx_rules_rule_type ON rules(rule_type);
 CREATE INDEX IF NOT EXISTS idx_rules_status ON rules(status);
 CREATE INDEX IF NOT EXISTS idx_rule_attributes_rule_id ON rule_attributes(rule_id);
 CREATE INDEX IF NOT EXISTS idx_processing_logs_document_id ON processing_logs(document_id);
-CREATE INDEX IF NOT EXISTS idx_audit_trail_entity ON audit_trail(entity_type, entity_id);
+-- CREATE INDEX IF NOT EXISTS idx_audit_trail_entity ON audit_trail(entity_type, entity_id);
 
 -- Create a function to update the updated_at column
 CREATE OR REPLACE FUNCTION update_modified_column()

@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.config import settings
@@ -51,6 +52,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     await close_db_connection()
 
 
+# Import routers
+from app.api.endpoints import rules as rules_router
+
 # Create FastAPI application
 app = FastAPI(
     title="Transaction Analysis Engine (TAE)",
@@ -71,6 +75,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include API routers
+app.include_router(rules_router.router)
 
 # Include API routers
 from app.api.routes import router as tae_router

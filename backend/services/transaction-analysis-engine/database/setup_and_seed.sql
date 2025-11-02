@@ -1,15 +1,34 @@
--- Transaction Analysis Engine (TAE) - Seed Regulatory Rules
--- Mock regulatory rules for HKMA, MAS, FINMA
--- Created: 2025-10-31
+-- Drop the table if it exists to start fresh
+DROP TABLE IF EXISTS regulatory_rules CASCADE;
 
--- ============================================================================
--- HONG KONG (HKMA/SFC) - 5 Rules
--- ============================================================================
+-- Create the table with the correct schema
+CREATE TABLE regulatory_rules (
+    id SERIAL PRIMARY KEY,
+    rule_id VARCHAR(50) NOT NULL UNIQUE,
+    jurisdiction VARCHAR(10) NOT NULL,
+    regulator VARCHAR(50) NOT NULL,
+    rule_type VARCHAR(50) NOT NULL,
+    rule_text TEXT NOT NULL,
+    rule_parameters JSONB NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    priority INTEGER NOT NULL,
+    effective_date DATE NOT NULL,
+    expiry_date DATE,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    version VARCHAR(20),
+    source_url TEXT,
+    tags TEXT[],
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
--- First, make sure the priority column allows NULL or has a default value
-ALTER TABLE regulatory_rules ALTER COLUMN priority DROP NOT NULL;
+-- Create indexes for better query performance
+CREATE INDEX idx_regulatory_rules_jurisdiction ON regulatory_rules(jurisdiction);
+CREATE INDEX idx_regulatory_rules_rule_type ON regulatory_rules(rule_type);
+CREATE INDEX idx_regulatory_rules_severity ON regulatory_rules(severity);
+CREATE INDEX idx_regulatory_rules_is_active ON regulatory_rules(is_active);
 
--- Now insert the data with explicit priority values
+-- Insert seed data
 INSERT INTO regulatory_rules (rule_id, jurisdiction, regulator, rule_type, rule_text, rule_parameters, severity, priority, effective_date, is_active) VALUES
 ('HKMA-CASH-001', 'HK', 'HKMA/SFC', 'cash_limit',
  'Cash transactions exceeding HKD 8,000 require enhanced monitoring and potential reporting under anti-money laundering guidelines.',
@@ -29,19 +48,13 @@ INSERT INTO regulatory_rules (rule_id, jurisdiction, regulator, rule_type, rule_
 ('SFC-VA-001', 'HK', 'HKMA/SFC', 'virtual_asset',
  'Products with virtual asset exposure must have proper risk disclosure provided to clients. Suitability assessment is mandatory.',
  '{"requires_disclosure": true, "requires_suitability": true}'::jsonb,
- 'MEDIUM', '2024-06-01', true),
+ 'MEDIUM', 50, '2024-06-01', true),
 
 ('HKMA-STR-001', 'HK', 'HKMA/SFC', 'suspicious_transaction',
  'Suspicious transaction reports (STR) must be filed with JFIU within 14 days of suspicion determination.',
  '{"filing_deadline_days": 14, "authority": "JFIU"}'::jsonb,
- 'CRITICAL', 200, '2024-01-01', true);
+ 'CRITICAL', 200, '2024-01-01', true),
 
--- ============================================================================
--- SINGAPORE (MAS) - 5 Rules
--- ============================================================================
-
--- Insert Singapore (MAS) rules
-INSERT INTO regulatory_rules (rule_id, jurisdiction, regulator, rule_type, rule_text, rule_parameters, severity, priority, effective_date, is_active) VALUES
 ('MAS-TRAVEL-001', 'SG', 'MAS', 'travel_rule',
  'Virtual asset transfers exceeding SGD 1,500 must include originator and beneficiary information (Travel Rule compliance).',
  '{"threshold": 1500, "currency": "SGD", "requires_originator_info": true}'::jsonb,
@@ -60,19 +73,13 @@ INSERT INTO regulatory_rules (rule_id, jurisdiction, regulator, rule_type, rule_
 ('MAS-CASH-001', 'SG', 'MAS', 'cash_structuring',
  'Multiple cash transactions below SGD 5,000 within 24 hours from same customer may indicate structuring. Enhanced monitoring required.',
  '{"threshold": 5000, "currency": "SGD", "time_window_hours": 24}'::jsonb,
- 'HIGH', '2024-01-01', true),
+ 'HIGH', 100, '2024-01-01', true),
 
 ('MAS-EDD-001', 'SG', 'MAS', 'enhanced_dd',
  'Enhanced due diligence required for high-risk customers including PEPs, customers from high-risk jurisdictions, and complex ownership structures.',
  '{"triggers": ["pep", "high_risk_country", "complex_structure"], "requires_edd": true}'::jsonb,
- 'HIGH', 100, '2024-01-01', true);
+ 'HIGH', 100, '2024-01-01', true),
 
--- ============================================================================
--- SWITZERLAND (FINMA) - 5 Rules
--- ============================================================================
-
--- Insert Switzerland (FINMA) rules
-INSERT INTO regulatory_rules (rule_id, jurisdiction, regulator, rule_type, rule_text, rule_parameters, severity, priority, effective_date, is_active) VALUES
 ('FINMA-CASH-001', 'CH', 'FINMA', 'cash_limit',
  'Cash transactions exceeding CHF 15,000 require identification verification and source of funds documentation.',
  '{"threshold": 15000, "currency": "CHF", "requires_id": true, "requires_sof": true}'::jsonb,
@@ -91,18 +98,14 @@ INSERT INTO regulatory_rules (rule_id, jurisdiction, regulator, rule_type, rule_
 ('FINMA-PEP-001', 'CH', 'FINMA', 'pep_identification',
  'Politically exposed persons must be identified at onboarding. Senior management approval required for establishing PEP relationships.',
  '{"onboarding_check": true, "requires_approval": "senior_management"}'::jsonb,
- 'CRITICAL', '2024-01-01', true),
+ 'CRITICAL', 200, '2024-01-01', true),
 
 ('FINMA-COMPLEX-001', 'CH', 'FINMA', 'complex_products',
  'Complex financial products require suitability assessment and risk profile matching. Clients must acknowledge understanding of risks.',
  '{"requires_suitability": true, "requires_acknowledgment": true, "risk_profile_match": true}'::jsonb,
- 'MEDIUM', '2024-01-01', true);
+ 'MEDIUM', 50, '2024-01-01', true);
 
--- ============================================================================
--- Verify seed data
--- ============================================================================
-
--- Count should be 15
+-- Verify the data was loaded
 SELECT COUNT(*) as total_rules,
        COUNT(CASE WHEN jurisdiction = 'HK' THEN 1 END) as hk_rules,
        COUNT(CASE WHEN jurisdiction = 'SG' THEN 1 END) as sg_rules,

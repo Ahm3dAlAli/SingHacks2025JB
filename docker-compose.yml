@@ -189,15 +189,12 @@ services:
       - NEXT_PUBLIC_TAE_API_URL=http://tae-service:8002
       - NEXT_PUBLIC_REGULATORY_API_URL=http://regulatory-service:8003
       - NEXT_PUBLIC_REMEDIATION_API_URL=http://remediation-service:8004
-      - NEXT_PUBLIC_DCE_API_URL=http://dce-service:8010
-      # Server-side proxy for DCE
-      - CORROBORATION_API_URL=http://dce-service:8010
-      - CORROBORATION_API_PREFIX=/api/v1
+      - NEXT_PUBLIC_ALERT_API_URL=http://alert-service:8005
     depends_on:
       - tae-service
       - regulatory-service
       - remediation-service
-      - dce-service
+      - alert-service
     networks:
       - aml_network
     restart: unless-stopped

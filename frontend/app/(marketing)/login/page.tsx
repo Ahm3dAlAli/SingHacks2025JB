@@ -35,7 +35,7 @@ export default function LoginPage() {
       };
       if (!res.ok || !data.ok || !data.token) throw new Error(data.error || "Login failed");
       saveToken(data.token);
-      // Default to a valid AppRole when none provided
+      // Default to 'relationship_manager' if no role is provided or if it's not a valid AppRole
       saveRole(data.role || "relationship_manager");
       router.push("/dashboard");
     } catch (err: any) {
