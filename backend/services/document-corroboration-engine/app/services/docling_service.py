@@ -1,5 +1,4 @@
 import docling
-from docling.datamodel.base_models import ClassificationResult
 from typing import Dict, Any, List
 import os
 from app.utils.logger import setup_logger
@@ -27,7 +26,7 @@ class DoclingService:
                 "tables": self._extract_tables(result.document),
                 "images": self._extract_images_info(result.document),
                 "metadata": self._extract_metadata(result.document),
-                "structure": self._analyze_structure(result.document)
+                "structure_analysis": self._analyze_structure(result.document)
             }
             
             logger.info("Docling processing completed successfully")
