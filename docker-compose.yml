@@ -157,6 +157,8 @@ services:
     container_name: dce_service
     environment:
       - LOG_LEVEL=${DCE_LOG_LEVEL:-INFO}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_VISION_MODEL=${GROQ_VISION_MODEL:-llama-3.2-11b-vision-preview}
     ports:
       - "8010:8010"
     volumes:

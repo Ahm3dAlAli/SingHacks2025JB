@@ -85,8 +85,8 @@ export default function DocsReviewPage() {
       const name = it.title?.replace(/\s+/g, "-") || "document";
       const pathNoQuery = it.filePath.split("?")[0];
       const ext = (pathNoQuery.includes('.') ? `.${pathNoQuery.split('.').pop()}` : '').toLowerCase();
-      const supported = [".pdf", ".docx", ".txt"];
-      if (!supported.includes(ext)) throw new Error("Only PDF, DOCX, or TXT supported for corroboration");
+      const supported = [".pdf", ".docx", ".txt", ".png", ".jpg", ".jpeg"];
+      if (!supported.includes(ext)) throw new Error("Only PDF, DOCX, TXT, PNG, or JPG supported for corroboration");
       const primary = new File([blob], `${name}${ext}`, { type: blob.type || "application/octet-stream" });
       // choose up to 2 other items as references; fallback to duplicating primary
       const candidates = items.filter((x) => x.id !== it.id).slice(0, 2);
