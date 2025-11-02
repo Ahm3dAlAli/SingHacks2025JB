@@ -1,23 +1,46 @@
-fastapi
-uvicorn
-python-multipart
-docling
-groq
-Pillow
-pydantic
-python-docx
-pypdf
-redis
-celery
-aiofiles
-sqlalchemy
-alembic
-python-jose
-langchain
-langchain-groq
-langgraph
-psutil
-python-magic
-forex-python
-dateparser
-spacy
+# Core
+fastapi>=0.104.1
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+
+# Pydantic v2
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Document Processing
+docling>=2.60.0
+groq>=0.4.0
+python-docx>=1.0.0
+pypdf>=3.0.0
+Pillow>=10.0.0
+python-magic>=0.4.27
+
+# Database
+sqlalchemy>=2.0.0
+alembic>=1.12.1
+psycopg2-binary>=2.9.9
+
+# Task Queue
+celery>=5.3.4
+redis>=5.0.0
+
+# Authentication
+python-jose>=3.3.0
+
+# AI/ML
+langchain>=0.0.300
+langchain-groq>=0.1.0
+langgraph>=0.0.8
+spacy>=3.7.2
+
+# Utilities
+psutil>=5.9.5
+forex-python>=1.0.0,<1.1.0  # Pinned to a compatible version
+dateparser>=1.1.8
+aiofiles>=23.2.1
+
+# Vision OCR
+httpx>=0.25.0
+pdf2image>=1.17.0
+python-magic>=0.4.27
+pytesseract>=0.3.10

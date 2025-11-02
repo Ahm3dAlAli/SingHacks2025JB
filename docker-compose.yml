@@ -22,6 +22,7 @@ services:
       - ./backend/services/transaction-analysis-engine/database/seed_rules.sql:/docker-entrypoint-initdb.d/02_tae_seed_rules.sql
       - ./backend/services/regulatory-ingestion-engine/database/init.sql:/docker-entrypoint-initdb.d/03_regulatory_init.sql
       - ./backend/services/alert-service/database/init.sql:/docker-entrypoint-initdb.d/04_alert_service_init.sql
+      - ./backend/services/document-corroboration-engine/database/init.sql:/docker-entrypoint-initdb.d/05_document_init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
@@ -174,6 +175,69 @@ services:
     restart: unless-stopped
 
   # ============================================
+  # Document Corroboration Engine - Port 8006
+  # ============================================
+
+  document-service:
+    build:
+      context: ./backend/services/document-corroboration-engine
+      dockerfile: Dockerfile
+    container_name: document_service
+    ports:
+      - "8006:8000"  # Map host port 8006 to container port 8000
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/document_db
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - LOG_LEVEL=INFO
+      - CELERY_BROKER_URL=redis://document-redis:6379/0
+    volumes:
+      - ./backend/services/document-corroboration-engine/data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      document-redis:
+        condition: service_healthy
+    networks:
+      - aml_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  document-redis:
+    image: redis:alpine
+    container_name: document_redis
+    networks:
+      - aml_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  document-worker:
+    build:
+      context: ./backend/services/document-corroboration-engine
+      dockerfile: Dockerfile
+    container_name: document_worker
+    command: celery -A app.workflows.workflow.celery_app worker --loglevel=info
+    environment:
+      - CELERY_BROKER_URL=redis://document-redis:6379/0
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/document_db
+    volumes:
+      - ./backend/services/document-corroboration-engine/data:/app/data
+    depends_on:
+      - document-redis
+      - postgres
+    networks:
+      - aml_network
+    restart: unless-stopped
+
+  # ============================================
   # Frontend - Next.js Application - Port 3000
   # ============================================
 
@@ -190,11 +254,13 @@ services:
       - NEXT_PUBLIC_REGULATORY_API_URL=http://regulatory-service:8003
       - NEXT_PUBLIC_REMEDIATION_API_URL=http://remediation-service:8004
       - NEXT_PUBLIC_ALERT_API_URL=http://alert-service:8005
+      - NEXT_PUBLIC_DOCUMENT_API_URL=http://document-service:8000
     depends_on:
       - tae-service
       - regulatory-service
       - remediation-service
       - alert-service
+      - document-service
     networks:
       - aml_network
     restart: unless-stopped

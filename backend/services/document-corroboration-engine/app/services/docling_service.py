@@ -1,4 +1,6 @@
 import docling
+# Classification functionality is now handled by FigureClassificationPrediction in newer versions
+from docling.datamodel.base_models import FigureClassificationPrediction
 from typing import Dict, Any, List
 import os
 from app.utils.logger import setup_logger

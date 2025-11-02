@@ -1,25 +1,35 @@
+version: '3.8'
+
 services:
   document-api:
     build: .
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=sqlite:///./data/documents.db
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${DOCUMENT_DB:-document_db}
       - GROQ_API_KEY=${GROQ_API_KEY}
       - LOG_LEVEL=INFO
+      - DEBUG=${DEBUG:-false}
+      - UPLOAD_DIR=/app/data/uploads
+      - MAX_FILE_SIZE=104857600
     volumes:
       - ./data:/app/data
     depends_on:
       - redis
+    networks:
+      - singhacks2025jb_aml_network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
 
   redis:
     image: redis:alpine
+    networks:
+      - singhacks2025jb_aml_network
     restart: unless-stopped
 
   celery-worker:
@@ -32,6 +42,8 @@ services:
       - GROQ_API_KEY=${GROQ_API_KEY}
     volumes:
       - ./data:/app/data
+    networks:
+      - singhacks2025jb_aml_network
     restart: unless-stopped
 
   celery-beat:
@@ -43,4 +55,10 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
     volumes:
       - ./data:/app/data
+    networks:
+      - singhacks2025jb_aml_network
     restart: unless-stopped
+
+networks:
+  singhacks2025jb_aml_network:
+    external: true
