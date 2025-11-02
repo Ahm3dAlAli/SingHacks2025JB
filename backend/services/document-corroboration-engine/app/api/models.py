@@ -93,6 +93,24 @@ class DocumentAnalysisResponse(BaseModel):
     extracted_text: Optional[str] = None
     processing_method: Optional[str] = None
     
+    # Document classification
+    document_type: Optional[str] = Field(
+        None, 
+        description="Type of document (e.g., legal, compliance, financial, identification, contract)"
+    )
+    is_relevant: Optional[bool] = Field(
+        True, 
+        description="Whether the document is relevant for legal/compliance review"
+    )
+    has_proof: Optional[bool] = Field(
+        False, 
+        description="Whether the document contains verifiable proof"
+    )
+    proof_details: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Details about the proof found in the document"
+    )
+    
     # Structure analysis
     structure_analysis: Optional[StructureAnalysis] = None
     

@@ -31,6 +31,12 @@ class Document(Base):
     risk_score = Column(Float, default=0.0)
     risk_level = Column(String(20), default="low")
     
+    # Document classification
+    document_type = Column(String(50), nullable=True)  # legal, compliance, financial, etc.
+    is_relevant = Column(Boolean, default=True)  # Whether document is relevant for review
+    has_proof = Column(Boolean, default=False)  # Whether document contains verifiable proof
+    proof_details = Column(JSON, default=dict)  # Details about the proof found
+    
     # Metadata
     processing_time = Column(Float)
     processed_at = Column(DateTime(timezone=True))

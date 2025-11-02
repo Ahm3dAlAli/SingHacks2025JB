@@ -28,7 +28,7 @@ class GroqVisionOCRService:
         self.model = model
         self.base_url = "https://api.groq.com/openai/v1"
         self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer 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",
             "Content-Type": "application/json"
         }
     

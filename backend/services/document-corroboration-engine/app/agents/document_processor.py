@@ -1,16 +1,18 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import os
-from app.services.docling_service import DoclingService
-from app.services.vision_service import GroqVisionOCRService
-from app.services.vision_service import AdvancedVisionService
+from app.services.docling_service import DoclingService, DOCLING_AVAILABLE
+from app.services.vision_ocr_service import GroqVisionOCRService
+from app.services.advanced_vision_service import AdvancedVisionService
 from app.services.groq_client import GroqClient
 from app.utils.logger import setup_logger
+from app.utils.file_utils import get_file_extension
+from app.utils.pdf_utils import extract_text_from_pdf
 
 logger = setup_logger(__name__)
 
 class DocumentProcessorAgent:
     def __init__(self):
-        self.docling_service = DoclingService()
+        self.docling_service = DoclingService() if DOCLING_AVAILABLE else None
         self.vision_ocr_service = GroqVisionOCRService()
         self.advanced_vision_service = AdvancedVisionService()
         self.groq_client = GroqClient()

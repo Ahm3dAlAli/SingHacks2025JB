@@ -1,7 +1,8 @@
 from celery import Celery
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import os
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database.connection import get_db
 from app.database.models import Document, AuditTrail
@@ -9,6 +10,7 @@ from app.agents.document_processor import DocumentProcessorAgent
 from app.agents.format_validator import FormatValidatorAgent
 from app.agents.image_analyzer import ImageAnalyzerAgent
 from app.agents.risk_scorer import RiskScorerAgent
+from app.agents.document_classifier import DocumentClassifier
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -37,6 +39,7 @@ def process_document_workflow(document_id: str, file_path: str):
         format_validator = FormatValidatorAgent()
         image_analyzer = ImageAnalyzerAgent()
         risk_scorer = RiskScorerAgent()
+        doc_classifier = DocumentClassifier()
         
         # Update document status
         db = next(get_db())
@@ -65,10 +68,21 @@ def process_document_workflow(document_id: str, file_path: str):
         if file_extension in ['.jpg', '.jpeg', '.png']:
             image_analysis = image_analyzer.analyze_image(file_path)
         
-        # Step 4: Risk Scoring
-        logger.info("Step 4: Risk Scoring")
+        # Step 4: Document Classification and Relevance Check
+        logger.info("Step 4: Document Classification and Relevance Check")
+        classification = doc_classifier.classify_document(extracted_text)
+        
+        # Step 5: Risk Scoring with classification context
+        logger.info("Step 5: Risk Scoring")
         risk_assessment = risk_scorer.calculate_comprehensive_risk(
-            document_analysis, format_validation, image_analysis
+            {
+                **document_analysis,
+                'document_type': classification['document_type'],
+                'is_relevant': classification['is_relevant'],
+                'has_proof': classification['has_proof']
+            }, 
+            format_validation, 
+            image_analysis
         )
         
         # Step 5: Update Database
@@ -79,6 +93,11 @@ def process_document_workflow(document_id: str, file_path: str):
         document.spelling_errors = []  # Would be populated by spell check
         document.missing_sections = document_analysis.get("missing_sections", [])
         document.image_analysis = image_analysis
+        # Update document with classification and risk assessment
+        document.document_type = classification['document_type']
+        document.is_relevant = classification['is_relevant']
+        document.has_proof = classification['has_proof']
+        document.proof_details = classification.get('proof_details', {})
         document.risk_score = risk_assessment["overall_risk_score"]
         document.risk_level = risk_assessment["risk_level"]
         document.status = "completed"
