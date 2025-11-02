@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { useRole } from "@/lib/use-role";
 import { Permissions } from "@/lib/rbac";
 import { isLoggedIn } from "@/lib/auth";
+import {
+  corroborateUpload,
+  getStatistics,
+  type CorroborationStats,
+} from "@/lib/api/corroboration";
 
 type ReviewDoc = {
   id: string;
@@ -31,6 +36,133 @@ export default function DocsReviewPage() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [commentMap, setCommentMap] = useState<Record<string, string>>({});
   const [fraudMap, setFraudMap] = useState<Record<string, boolean>>({});
+  const [stats, setStats] = useState<CorroborationStats | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
+
+  // Map internal doc id -> corroboration doc id
+  const [corroMap, setCorroMap] = useState<Record<string, string>>({});
+  const [analysisOpen, setAnalysisOpen] = useState<Record<string, boolean>>({});
+  const [analysis, setAnalysis] = useState<Record<string, { loading: boolean; error?: string; doc?: any; risks?: any; text?: string; structure?: any }>>({});
+
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const raw = window.localStorage.getItem("corroMap");
+        if (raw) setCorroMap(JSON.parse(raw));
+      }
+    } catch {}
+  }, []);
+
+  function saveCorroMap(next: Record<string, string>) {
+    setCorroMap(next);
+    try {
+      if (typeof window !== "undefined") window.localStorage.setItem("corroMap", JSON.stringify(next));
+    } catch {}
+  }
+
+  function extractDocId(resp: any): string | null {
+    if (!resp) return null;
+    return (
+      resp.id ||
+      resp.document_id ||
+      resp.docId ||
+      resp.document?.id ||
+      resp.result?.id ||
+      null
+    );
+  }
+
+  async function sendToCorroboration(it: ReviewDoc) {
+    try {
+      // fetch the uploaded file from our static path and wrap as File
+      // Try direct path first; if it fails and path starts with /uploads, use API fallback
+      let r = await fetch(it.filePath);
+      if (!r.ok && it.filePath.startsWith("/uploads/")) {
+        r = await fetch(`/api${it.filePath}`);
+      }
+      if (!r.ok) throw new Error("Failed to fetch file");
+      const blob = await r.blob();
+      const name = it.title?.replace(/\s+/g, "-") || "document";
+      const pathNoQuery = it.filePath.split("?")[0];
+      const ext = (pathNoQuery.includes('.') ? `.${pathNoQuery.split('.').pop()}` : '').toLowerCase();
+      const supported = [".pdf", ".docx", ".txt"];
+      if (!supported.includes(ext)) throw new Error("Only PDF, DOCX, or TXT supported for corroboration");
+      const primary = new File([blob], `${name}${ext}`, { type: blob.type || "application/octet-stream" });
+      // choose up to 2 other items as references; fallback to duplicating primary
+      const candidates = items.filter((x) => x.id !== it.id).slice(0, 2);
+      const refs: File[] = [];
+      for (const o of candidates) {
+        let rr = await fetch(o.filePath);
+        if (!rr.ok && o.filePath.startsWith("/uploads/")) rr = await fetch(`/api${o.filePath}`);
+        if (rr.ok) {
+          const b = await rr.blob();
+          const n = o.title?.replace(/\s+/g, "-") || "reference";
+          const p2 = o.filePath.split("?")[0];
+          const ext2 = (p2.includes('.') ? `.${p2.split('.').pop()}` : '').toLowerCase();
+          if (supported.includes(ext2)) {
+            refs.push(new File([b], `${n}${ext2}`, { type: b.type || "application/octet-stream" }));
+          }
+        }
+      }
+      if (refs.length === 0) refs.push(new File([blob], `${name}${ext}`, { type: blob.type || "application/octet-stream" }));
+      const result = await corroborateUpload(primary, refs);
+      const next = { ...corroMap, [it.id]: "v2" };
+      saveCorroMap(next);
+      setAnalysis((m) => ({ ...m, [it.id]: { loading: false, doc: result } }));
+      setAnalysisOpen((o) => ({ ...o, [it.id]: true }));
+    } catch (e: any) {
+      setError(e.message || "Failed to send to corroboration");
+    }
+  }
+
+  async function refreshAnalysis(internalId: string) {
+    const it = items.find((x) => x.id === internalId);
+    if (!it) return;
+    setAnalysis((m) => ({ ...m, [internalId]: { ...(m[internalId] || {}), loading: true, error: undefined } }));
+    try {
+      let r = await fetch(it.filePath);
+      if (!r.ok && it.filePath.startsWith("/uploads/")) r = await fetch(`/api${it.filePath}`);
+      if (!r.ok) throw new Error("Failed to fetch file");
+      const blob = await r.blob();
+      const name = it.title?.replace(/\s+/g, "-") || "document";
+      const pathNoQuery2 = it.filePath.split("?")[0];
+      const extMain = (pathNoQuery2.includes('.') ? `.${pathNoQuery2.split('.').pop()}` : '').toLowerCase();
+      const supported2 = [".pdf", ".docx", ".txt"];
+      if (!supported2.includes(extMain)) throw new Error("Only PDF, DOCX, or TXT supported for corroboration");
+      const primary = new File([blob], `${name}${extMain}`, { type: blob.type || "application/octet-stream" });
+      const candidates = items.filter((x) => x.id !== it.id).slice(0, 2);
+      const refs: File[] = [];
+      for (const o of candidates) {
+        let rr = await fetch(o.filePath);
+        if (!rr.ok && o.filePath.startsWith("/uploads/")) rr = await fetch(`/api${o.filePath}`);
+        if (rr.ok) {
+          const b = await rr.blob();
+          const n = o.title?.replace(/\s+/g, "-") || "reference";
+          const p2 = o.filePath.split("?")[0];
+          const ext2 = (p2.includes('.') ? `.${p2.split('.').pop()}` : '').toLowerCase();
+          if (supported2.includes(ext2)) {
+            refs.push(new File([b], `${n}${ext2}`, { type: b.type || "application/octet-stream" }));
+          }
+        }
+      }
+      if (refs.length === 0) refs.push(new File([blob], `${name}${extMain}`, { type: blob.type || "application/octet-stream" }));
+      const result = await corroborateUpload(primary, refs);
+      setAnalysis((m) => ({ ...m, [internalId]: { loading: false, doc: result } }));
+      setAnalysisOpen((o) => ({ ...o, [internalId]: true }));
+    } catch (e: any) {
+      setAnalysis((m) => ({ ...m, [internalId]: { loading: false, error: e.message || "Failed to load analysis" } }));
+    }
+  }
+
+  async function loadStats() {
+    try {
+      setStatsError(null);
+      const s = await getStatistics();
+      setStats(s);
+    } catch (e: any) {
+      setStatsError(e.message || "Failed to load statistics");
+    }
+  }
 
   async function load() {
     try {
@@ -84,7 +216,7 @@ export default function DocsReviewPage() {
         <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Documentation Review</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">Upload supporting documents and review flagged items.</p>
       </div>
-      <div className="mb-3 flex items-center gap-3 text-xs">
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-xs">
         <label className="text-zinc-600 dark:text-zinc-400">Status</label>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded border bg-white p-1 dark:border-zinc-700 dark:bg-zinc-950">
           <option value="">All</option>
@@ -93,6 +225,13 @@ export default function DocsReviewPage() {
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
+        <button onClick={loadStats} className="rounded border px-2 py-1">Load Corroboration Stats</button>
+        {statsError ? <span className="text-red-600">{statsError}</span> : null}
+        {stats ? (
+          <span className="rounded bg-zinc-100 px-2 py-0.5 text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+            Docs: {stats.total_documents} • High risk: {stats.total_high_risk}
+          </span>
+        ) : null}
       </div>
 
       {/* RM upload form */}
@@ -180,6 +319,14 @@ export default function DocsReviewPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <a href={it.filePath} target="_blank" className="rounded border px-3 py-1.5 text-xs">Open</a>
+                  {corroMap[it.id] ? (
+                    <>
+                      <button onClick={() => refreshAnalysis(it.id)} className="rounded border px-3 py-1.5 text-xs">{analysis[it.id]?.loading ? 'Refreshing…' : 'Refresh Analysis'}</button>
+                      <button onClick={() => setAnalysisOpen((o) => ({ ...o, [it.id]: !o[it.id] }))} className="rounded border px-3 py-1.5 text-xs">{analysisOpen[it.id] ? 'Hide Analysis' : 'View Analysis'}</button>
+                    </>
+                  ) : (
+                    <button onClick={() => sendToCorroboration(it)} className="rounded border px-3 py-1.5 text-xs">Send to Corroboration</button>
+                  )}
                   {role === "compliance_manager" ? (
                     <>
                       <div className="flex items-center gap-2">
@@ -215,6 +362,30 @@ export default function DocsReviewPage() {
                   ) : null}
                 </div>
               </div>
+              {corroMap[it.id] && analysisOpen[it.id] ? (
+                <div className="mt-2 rounded border bg-white/50 p-2 text-xs dark:border-zinc-800 dark:bg-zinc-900/40">
+                  <div className="mb-1 flex items-center justify-between">
+                    <div className="font-medium">Corroboration Analysis</div>
+                    <div className="font-mono text-[10px] text-zinc-500">Engine: v2</div>
+                  </div>
+                  {analysis[it.id]?.error ? (
+                    <div className="text-red-600">{analysis[it.id]?.error}</div>
+                  ) : analysis[it.id]?.loading ? (
+                    <div className="text-zinc-500">Loading…</div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="rounded bg-zinc-100 px-2 py-0.5 dark:bg-zinc-800">Score: {(analysis[it.id]?.doc as any)?.score ?? 0}</span>
+                        <span className="rounded bg-zinc-100 px-2 py-0.5 dark:bg-zinc-800">Summary: {(analysis[it.id]?.doc as any)?.summary ?? ''}</span>
+                      </div>
+                      <div>
+                        <div className="mb-1 font-medium">Result</div>
+                        <pre className="max-h-60 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-2 dark:bg-zinc-950">{JSON.stringify(analysis[it.id]?.doc ?? {}, null, 2)}</pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>

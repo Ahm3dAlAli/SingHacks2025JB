@@ -5,7 +5,7 @@
   ┌──────────────────────┐
   │  1. REGULATORY       │
   │  INGESTION ENGINE    │
-  │  Port: 8001          │
+  │  Port: 8003          │
   │                      │
   │  • Crawl MAS/FINMA/  │
   │    HKMA websites     │
@@ -25,29 +25,67 @@
   │  Shared Tables:                                              │
   │  ├─ regulatory_rules      (from Service 1)                  │
   │  ├─ transactions          (loaded by Service 2)             │
-  │  ├─ alerts                (from Service 3)                  │
   │  ├─ risk_scores           (from Service 2)                  │
   │  ├─ remediation_actions   (from Service 4)                  │
-  │  └─ audit_trail           (all services write here)         │
+  │  └─ audit_trail           (various services)                │
   └──────────────────────────────────────────────────────────────┘
-             ▲                    ▲                    ▲
-             │                    │                    │
-  ┌──────────┴───────────┐ ┌──────┴──────────┐ ┌──────┴──────────┐
-  │  2. TRANSACTION      │ │  3. ALERT       │ │  4. REMEDIATION │
-  │  ANALYSIS ENGINE     │ │  SYSTEM         │ │  WORKFLOWS      │
-  │  (TAE)               │ │                 │ │                 │
-  │  Port: 8002          │ │  Port: 8003     │ │  Port: 8004     │
-  │                      │ │                 │ │                 │
-  │  YOUR BUILD:         │ │                 │ │                 │
-  │  • LangGraph agents  │ │  • Route alerts │ │  • Suggest      │
-  │  • Groq API calls    │ │  • Tailor msgs  │ │   actions       │
-  │  • Batch processing  │ │  • Front Office │ │  • Workflow     │
-  │  • Risk scoring      │ │  • Compliance   │ │   templates     │
-  │  • Behavioral        │ │  • Legal        │ │  • Audit trail  │
-  │    analysis          │ │  • SLA tracking │ │                 │
-  │                      │ │  • ACK tracking │ │  Owner: Other   │
-  │  Owner: YOU          │ │                 │ │         person  │
-  │                      │ │  Owner: Other   │ │                 │
-  │                      │ │         person  │ │                 │
-  └──────────────────────┘ └─────────────────┘ └─────────────────┘
+             ▲                                 ▲
+             │                                 │
+  ┌──────────┴───────────┐            ┌────────┴───────────┐
+  │  2. TRANSACTION      │            │  4. REMEDIATION    │
+  │  ANALYSIS ENGINE     │            │  WORKFLOWS         │
+  │  (TAE)               │            │                    │
+  │  Port: 8002          │            │  Port: 8004        │
+  │                      │            │                    │
+  │  • LangGraph agents  │            │  • Suggest actions  │
+  │  • Groq API calls    │            │  • Workflow engine  │
+  │  • Batch processing  │            │  • Audit trail      │
+  │  • Risk scoring      │            │                    │
+  │  • Behavioral        │            │  Owner: Other       │
+  │    analysis          │            │          person     │
+  │                      │            │                    │
+  │  Owner: YOU          │            │                    │
+  └──────────────────────┘            └────────────────────┘
 
+  ┌──────────────────────────────────────────────────────────────┐
+  │  3. ALERT SYSTEM                                             │
+  │  Port: N/A (logical component)                               │
+  │                                                              │
+  │  • Generates alerts from TAE outputs                         │
+  │  • Routed/handled by Remediation service                     │
+  │  • Persists alerts in Postgres (shared)                      │
+  │                                                              │
+  │  Note: No standalone container found in compose.             │
+  └──────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │  3. DOCUMENT CORROBORATION ENGINE (DCE v2)                   │
+  │  Port: 8010                                                  │
+  │                                                              │
+  │  • Lightweight text corroboration API                        │
+  │  • Endpoints: /health, /api/v1/corroborate(+/upload)         │
+  │  • No Redis/Celery; minimal dependencies                     │
+  └──────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │  FRONTEND (Next.js)                                         │
+  │  Port: 3000                                                 │
+  │  Talks to: TAE (8002), Regulatory (8003),                   │
+  │            Remediation (8004), DCE (8000)                   │
+  └──────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │  PGADMIN                                                     │
+  │  Port: 5050                                                  │
+  │  Admin UI for PostgreSQL                                     │
+  └──────────────────────────────────────────────────────────────┘
+
+────────────────────────────────────────────────────────────────────────────
+PORTS SUMMARY (host:container)
+• Postgres:                  5432:5432
+• PgAdmin:                   5050:80
+• Transaction Analysis (TAE):8002:8002
+• Regulatory Ingestion:      8003:8003
+• Remediation Workflows:     8004:8004
+• Document Corroboration:    8010:8010
+• Frontend (Next.js):        3000:3000

@@ -147,47 +147,26 @@ services:
     restart: unless-stopped
 
   # ============================================
-  # Alert Service - Port 8005
+  # Document Corroboration Engine v2 (DCE v2) - Port 8010
   # ============================================
 
-  alert-service:
+  dce-service:
     build:
-      context: ./backend/services/alert-service
+      context: ./backend/services/document-corroboration-engine-v2
       dockerfile: Dockerfile
-    container_name: alert_service
+    container_name: dce_service
     environment:
-      # Database Configuration
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: ${ALERT_SERVICE_DB:-alert_service_db}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-
-      # Application Configuration
-      ALERT_SERVICE_PORT: 8005
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
-
-      # Performance Settings
-      DB_POOL_SIZE: 10
-      DB_MAX_OVERFLOW: 20
-
-      # CORS
-      CORS_ORIGINS: http://localhost:3000
+      - LOG_LEVEL=${DCE_LOG_LEVEL:-INFO}
     ports:
-      - "8005:8005"
+      - "8010:8010"
     volumes:
-      - ./backend/services/alert-service/app:/app/app
-      - ./backend/services/alert-service/logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - ./backend/services/document-corroboration-engine-v2/data:/app/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8005/health || exit 1"]
+      test: ["CMD-SHELL", "python -c 'import urllib.request,sys;sys.exit(0 if urllib.request.urlopen(\"http://localhost:8010/health\").getcode()==200 else 1)' "]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 10s
     networks:
       - aml_network
     restart: unless-stopped
@@ -208,10 +187,15 @@ services:
       - NEXT_PUBLIC_TAE_API_URL=http://tae-service:8002
       - NEXT_PUBLIC_REGULATORY_API_URL=http://regulatory-service:8003
       - NEXT_PUBLIC_REMEDIATION_API_URL=http://remediation-service:8004
+      - NEXT_PUBLIC_DCE_API_URL=http://dce-service:8010
+      # Server-side proxy for DCE
+      - CORROBORATION_API_URL=http://dce-service:8010
+      - CORROBORATION_API_PREFIX=/api/v1
     depends_on:
       - tae-service
       - regulatory-service
       - remediation-service
+      - dce-service
     networks:
       - aml_network
     restart: unless-stopped

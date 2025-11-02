@@ -62,7 +62,8 @@ export async function createItem(params: {
   const fileBase = `${id}${ext}`;
   const diskPath = path.join(uploadDir, fileBase);
   await fs.writeFile(diskPath, params.data);
-  const publicPath = `/uploads/${fileBase}`;
+  // Use API route to serve uploads to avoid static serving issues in standalone runtime
+  const publicPath = `/api/uploads/${fileBase}`;
   const flags = deriveFlags(params.fileName, params.mimeType);
   const item: ReviewDoc = {
     id,

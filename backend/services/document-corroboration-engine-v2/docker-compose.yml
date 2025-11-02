@@ -1,0 +1,10 @@
+services:
+  dcev2:
+    build: .
+    image: dcev2:local
+    container_name: dcev2
+    ports:
+      - "8010:8010"
+    environment:
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
