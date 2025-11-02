@@ -1,5 +1,5 @@
-from typing import Dict, Any
-from app.services.advanced_vision_service import AdvancedVisionService
+from typing import Dict, Any, List
+from app.services.vision_service import AdvancedVisionService
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
