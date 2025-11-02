@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { isLoggedIn } from "@/lib/auth";
 import Link from "next/link";
 import { BadgeCheck, Bell, FileText, History, ShieldAlert } from "lucide-react";
+import { startWorkflow, getWorkflow, getAuditTrail, completeWorkflow, executeStep, type WorkflowSummary, type AuditEntry } from "@/lib/api/remediation";
 
 type AlertDetail = {
   id: string;
@@ -38,6 +39,18 @@ export default function AlertDetailPage() {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [wfStarting, setWfStarting] = useState(false);
+  const [wfResult, setWfResult] = useState<{ id: string; message: string } | null>(null);
+  const [wfId, setWfId] = useState<string | null>(null);
+  const [wfInfo, setWfInfo] = useState<WorkflowSummary | null>(null);
+  const [wfLoading, setWfLoading] = useState(false);
+  const [wfError, setWfError] = useState<string | null>(null);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [audit, setAudit] = useState<AuditEntry[] | null>(null);
+  const [completeRunning, setCompleteRunning] = useState(false);
+  const [stepRunning, setStepRunning] = useState<string | null>(null);
+  const [stepError, setStepError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoggedIn()) router.replace("/login");
@@ -95,6 +108,32 @@ export default function AlertDetailPage() {
     return () => clearInterval(id);
   }, [alertId]);
 
+  // Load remembered workflow id for this alert (if any)
+  useEffect(() => {
+    try {
+      const key = `wfByAlert:${alertId}`;
+      const saved = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+      if (saved) {
+        setWfId(saved);
+        // lazily fetch status
+        void refreshWorkflowStatus(saved);
+      } else {
+        setWfId(null);
+        setWfInfo(null);
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alertId]);
+
+  // Poll workflow status when a workflow exists
+  useEffect(() => {
+    if (!wfId) return;
+    const id = window.setInterval(() => {
+      void refreshWorkflowStatus();
+    }, 10000);
+    return () => window.clearInterval(id);
+  }, [wfId]);
+
   async function ack() {
     try {
       setUpdating(true);
@@ -148,6 +187,105 @@ export default function AlertDetailPage() {
       setAiError(e.message || "Error generating summary");
     } finally {
       setAiLoading(false);
+    }
+  }
+
+  async function startRemediation() {
+    if (!detail) return;
+    try {
+      setWfStarting(true);
+      setWfResult(null);
+      const payload = {
+        alert_id: detail.id,
+        risk_score: detail.risk,
+        severity: detail.severity,
+        customer_id: detail.entityId || "unknown",
+        transaction_ids: detail.transactions.map((t) => t.id),
+        triggered_rules: detail.ruleHits.map((r) => r.id),
+        customer_profile: { is_pep: false },
+        jurisdiction: "SG",
+        alert_type: "TransactionAlert",
+      } as const;
+      const res = await startWorkflow(payload);
+      setWfResult({ id: res.workflow_instance_id, message: res.message });
+      setWfId(res.workflow_instance_id);
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(`wfByAlert:${alertId}`, res.workflow_instance_id);
+        }
+      } catch {}
+      await refreshWorkflowStatus(res.workflow_instance_id);
+    } catch (e: any) {
+      setWfResult({ id: "", message: e.message || "Failed to start remediation" });
+    } finally {
+      setWfStarting(false);
+    }
+  }
+
+  async function refreshWorkflowStatus(id?: string) {
+    const wid = (id || wfId);
+    if (!wid) return;
+    try {
+      setWfLoading(true);
+      setWfError(null);
+      const info = await getWorkflow(wid);
+      setWfInfo(info);
+    } catch (e: any) {
+      setWfError(e.message || "Failed to load workflow");
+    } finally {
+      setWfLoading(false);
+    }
+  }
+
+  async function refreshAuditTrail() {
+    if (!wfId) return;
+    try {
+      setAuditLoading(true);
+      const data = await getAuditTrail(wfId);
+      setAudit(data.audit_entries || []);
+    } catch (e) {
+      setAudit([]);
+    } finally {
+      setAuditLoading(false);
+    }
+  }
+
+  async function markWorkflowComplete() {
+    if (!wfId) return;
+    try {
+      setCompleteRunning(true);
+      await completeWorkflow(wfId);
+      await refreshWorkflowStatus();
+    } finally {
+      setCompleteRunning(false);
+    }
+  }
+
+  function computeNextSteps(template?: string, current?: string): string[] {
+    if (!template || !current) return [];
+    const map: Record<string, string[]> = {
+      CRITICAL_BLOCK_WORKFLOW: ["initialize", "block_transactions", "notify_stakeholders", "investigation", "complete"],
+      EDD_STANDARD_WORKFLOW: ["initialize", "request_documents", "validate_documents", "compliance_review", "complete"],
+      EDD_PEP_WORKFLOW: ["initialize", "pep_verification", "senior_approval", "source_validation", "complete"],
+      ENHANCED_MONITORING_WORKFLOW: ["initialize", "setup_monitoring", "periodic_review", "complete"],
+    };
+    const steps = map[template] || [];
+    const idx = steps.indexOf(current);
+    return idx >= 0 ? steps.slice(idx + 1) : steps;
+  }
+
+  async function runStep(stepName: string) {
+    if (!wfId) return;
+    try {
+      setStepError(null);
+      setStepRunning(stepName);
+      await executeStep(wfId, stepName);
+      await refreshWorkflowStatus();
+      if (auditOpen) await refreshAuditTrail();
+    } catch (e: any) {
+      setStepError(e.message || "Failed to execute step");
+    } finally {
+      setStepRunning(null);
     }
   }
 
@@ -207,6 +345,13 @@ export default function AlertDetailPage() {
             >
               Close
             </button>
+            <button
+              onClick={startRemediation}
+              disabled={wfStarting}
+              className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+            >
+              {wfStarting ? "Starting…" : "Start Remediation"}
+            </button>
             {detail.entityId && (
               <Link href={`/kyc/${detail.entityId}`} className="rounded-md border px-3 py-1.5 text-sm">
                 Background Check
@@ -214,6 +359,90 @@ export default function AlertDetailPage() {
             )}
           </div>
         </header>
+        {(wfResult || wfId) && (
+          <div className="rounded-lg border p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <div className="font-medium">Remediation</div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => refreshWorkflowStatus()} className="rounded border px-2 py-1 text-xs">{wfLoading ? 'Refreshing…' : 'Refresh'}</button>
+                <button onClick={() => { setAuditOpen((v)=>!v); if (!auditOpen) refreshAuditTrail(); }} className="rounded border px-2 py-1 text-xs">{auditOpen ? 'Hide Audit' : 'Show Audit'}</button>
+              </div>
+            </div>
+            <div className="mt-1 text-zinc-600 dark:text-zinc-400">
+              {wfResult && (
+                wfResult.id
+                  ? <>Started workflow <span className="font-mono">{wfResult.id}</span>. {wfResult.message}</>
+                  : <span className="text-red-600">{wfResult.message}</span>
+              )}
+              {wfId && (
+                <div className="mt-2">
+                  <div>Workflow ID: <span className="font-mono">{wfId}</span></div>
+                  {wfError ? (
+                    <div className="text-red-600">{wfError}</div>
+                  ) : wfInfo ? (
+                    <>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs dark:bg-zinc-800">Status: {wfInfo.status}</span>
+                      <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs dark:bg-zinc-800">Step: {wfInfo.current_step}</span>
+                      {typeof wfInfo.progress === 'number' && (
+                        <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs dark:bg-zinc-800">Progress: {Math.round(wfInfo.progress)}%</span>
+                      )}
+                      {wfInfo.assigned_to && (
+                        <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs dark:bg-zinc-800">Assignee: {wfInfo.assigned_to}</span>
+                      )}
+                      <button onClick={markWorkflowComplete} disabled={completeRunning || wfInfo.status === 'completed'} className="ml-2 rounded bg-emerald-600 px-2 py-1 text-xs text-white disabled:opacity-50">
+                        {completeRunning ? 'Completing…' : 'Mark Complete'}
+                      </button>
+                    </div>
+                    
+                    {wfInfo.selected_workflow && (
+                      <div className="mt-2">
+                        <div className="text-xs text-zinc-500">Next steps:</div>
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          {computeNextSteps(wfInfo.selected_workflow, wfInfo.current_step).map((s) => (
+                            <button
+                              key={s}
+                              onClick={() => runStep(s)}
+                              disabled={!!stepRunning}
+                              className="rounded border px-2 py-0.5 text-xs"
+                              title="Execute step"
+                            >
+                              {stepRunning === s ? 'Running…' : s}
+                            </button>
+                          ))}
+                        </div>
+                        {stepError && <div className="mt-1 text-xs text-red-600">{stepError}</div>}
+                      </div>
+                    )}
+                    </>
+                  ) : (
+                    <div className="text-xs text-zinc-500">No status loaded yet.</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {auditOpen && (
+              <div className="mt-3 border-t pt-2">
+                <div className="text-xs font-medium">Audit Trail</div>
+                {auditLoading ? (
+                  <div className="text-xs text-zinc-500">Loading audit…</div>
+                ) : audit && audit.length > 0 ? (
+                  <ul className="mt-1 space-y-1 text-xs">
+                    {audit.map((a, i) => (
+                      <li key={i} className="flex items-center justify-between rounded border p-1">
+                        <span>{a.action.replace(/_/g, ' ')}</span>
+                        <span className="text-zinc-500">{new Date(a.timestamp).toLocaleString()}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-xs text-zinc-500">No audit entries.</div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <section className="rounded-lg border p-4">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">

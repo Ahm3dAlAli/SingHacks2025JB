@@ -128,7 +128,7 @@ export default function EntityBackgroundPage() {
     // clear previous timers
     searchTimers.current.forEach((t) => clearTimeout(t));
     searchTimers.current = [];
-    const items = ((bg.adverseMedia.items || []) as AdverseItem[]).map((it) => ({ ...it, subject: bg.name, subjectType: 'client' as const }));
+    const items = ((bg?.adverseMedia?.items || []) as AdverseItem[]).map((it) => ({ ...it, subject: bg?.name || '', subjectType: 'client' as const }));
     const steps = [
       { t: 400, msg: "Searching news sources..." },
       { t: 900, msg: "Scanning watchlists and regulatory updates..." },
@@ -144,7 +144,7 @@ export default function EntityBackgroundPage() {
     let pool = items as (AdverseItem & { subject: string; subjectType: 'client' | 'counterparty' })[];
     async function fetchCounterpartyMentions() {
       try {
-        const cps = (bg.topCounterparties || []).slice(0, 5).map((c) => c.name).filter(Boolean);
+        const cps = (bg?.topCounterparties || []).slice(0, 5).map((c) => c.name).filter(Boolean);
         const results = await Promise.all(
           cps.map(async (n) => {
             const res = await fetch(`/api/agent/adverse-media/by-name?name=${encodeURIComponent(n)}`);

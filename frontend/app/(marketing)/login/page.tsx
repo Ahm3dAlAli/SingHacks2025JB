@@ -27,10 +27,16 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = (await res.json()) as { ok: boolean; token?: string; role?: "relationship_manager" | "compliance_manager" | "legal"; error?: string };
+      const data = (await res.json()) as {
+        ok: boolean;
+        token?: string;
+        role?: "relationship_manager" | "compliance_manager" | "legal";
+        error?: string;
+      };
       if (!res.ok || !data.ok || !data.token) throw new Error(data.error || "Login failed");
       saveToken(data.token);
-      saveRole(data.role || "analyst");
+      // Default to a valid AppRole when none provided
+      saveRole(data.role || "relationship_manager");
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Something went wrong");
