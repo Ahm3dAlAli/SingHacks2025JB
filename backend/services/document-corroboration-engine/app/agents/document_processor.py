@@ -1,8 +1,8 @@
 from typing import Dict, Any, List
 import os
 from app.services.docling_service import DoclingService
-from app.services.vision_ocr_service import GroqVisionOCRService
-from app.services.advanced_vision_service import AdvancedVisionService
+from app.services.vision_service import GroqVisionOCRService
+from app.services.vision_service import AdvancedVisionService
 from app.services.groq_client import GroqClient
 from app.utils.logger import setup_logger
 
